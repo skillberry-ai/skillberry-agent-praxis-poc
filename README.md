@@ -6,12 +6,14 @@ External [Praxis](https://github.com/praxis-proxy/praxis) filters for the Skillb
 
 ## Filters
 
-| Filter | Description | Hook |
-|--------|-------------|------|
-| `context_extractor` | Extracts request headers into filter metadata for downstream filters | `on_request` |
-| `skill_resolver` | Resolves skill UUIDs from environment variables or via skillberry-store API lookup | `on_request` |
-| `vmcp_manager` | Creates Virtual MCP (VMCP) servers and fetches available MCP tools | `on_request_body` |
-| `mcp_tools_enricher` | Injects MCP tools into OpenAI-compatible chat completion request bodies | `on_request_body` |
+| Filter | Source | Description | Hook |
+|--------|--------|-------------|------|
+| `context_extractor` | this repo | Extracts request headers into filter metadata for downstream filters | `on_request` |
+| `skill_resolver` | this repo | Resolves skill UUIDs from environment variables or via skillberry-store API lookup | `on_request` |
+| `vmcp_manager` | this repo | Creates Virtual MCP (VMCP) servers and fetches available MCP tools | `on_request_body` |
+| `mcp_tools_enricher` | this repo | Injects MCP tools into OpenAI-compatible chat completion request bodies | `on_request_body` |
+| `router` | Praxis core | Routes requests to a named cluster based on path/header conditions | `on_request` |
+| `load_balancer` | Praxis core | Selects an upstream endpoint from a named cluster | `on_request` |
 
 ## Usage
 
