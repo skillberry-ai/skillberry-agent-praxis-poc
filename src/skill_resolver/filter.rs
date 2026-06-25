@@ -29,23 +29,25 @@ struct SkillResponse {
 
 /// Resolves skill UUIDs from environment variables.
 ///
-/// This filter reads SKILL_UUID or SKILL_NAME from environment variables
-/// and resolves them to a skill UUID. If SKILL_NAME is provided, it makes
-/// an HTTP request to the skillberry-store to lookup the UUID.
+/// Reads `SKILL_UUID` or `SKILL_NAME` once at construction time and stores
+/// the resolved value. If `SKILL_NAME` is provided, an HTTP request to
+/// skillberry-store is made per-request to look up the UUID.
 ///
-/// The resolved UUID is stored in the `x-skillberry-skill-uuid` request header
-/// for use by downstream filters (e.g., vmcp_manager).
+/// The resolved UUID is stored in `filter_metadata["skill_uuid"]` for use
+/// by downstream filters (e.g., `vmcp_manager`).
 pub struct SkillResolverFilter {
     http_client: Client,
     store_base_url: String,
-    skill_uuid_env: String,
-    skill_name_env: String,
+    /// Value of `SKILL_UUID` env var read once at startup, if set.
+    skill_uuid: Option<String>,
+    /// Value of `SKILL_NAME` env var read once at startup, if set.
+    skill_name: Option<String>,
     #[allow(dead_code)]
     timeout: Duration,
 }
 
 impl SkillResolverFilter {
-    /// Create from YAML config.
+    /// Create from YAML config. Reads env vars once at construction time.
     pub fn from_config(config: &serde_yaml::Value) -> Result<Box<dyn HttpFilter>, FilterError> {
         let cfg: SkillResolverConfig = parse_filter_config("skill_resolver", config)?;
 
@@ -60,21 +62,16 @@ impl SkillResolverFilter {
                 format!("skill_resolver: failed to create HTTP client: {e}").into()
             })?;
 
+        let skill_uuid = std::env::var(&cfg.skill_uuid_env).ok();
+        let skill_name = std::env::var(&cfg.skill_name_env).ok();
+
         Ok(Box::new(Self {
             http_client,
             store_base_url: cfg.store_base_url,
-            skill_uuid_env: cfg.skill_uuid_env,
-            skill_name_env: cfg.skill_name_env,
+            skill_uuid,
+            skill_name,
             timeout: Duration::from_millis(cfg.timeout_ms),
         }))
-    }
-
-    fn get_skill_uuid_from_env(&self) -> Option<String> {
-        std::env::var(&self.skill_uuid_env).ok()
-    }
-
-    fn get_skill_name_from_env(&self) -> Option<String> {
-        std::env::var(&self.skill_name_env).ok()
     }
 
     async fn lookup_skill_by_name(&self, skill_name: &str) -> Result<SkillResponse, FilterError> {
@@ -155,25 +152,19 @@ impl HttpFilter for SkillResolverFilter {
     }
 
     async fn on_request(&self, ctx: &mut HttpFilterContext<'_>) -> Result<FilterAction, FilterError> {
-        // Priority 1: Check for direct UUID in environment
-        if let Some(skill_uuid) = self.get_skill_uuid_from_env() {
-            tracing::info!(
-                skill_uuid = %skill_uuid,
-                "using skill UUID from environment variable"
-            );
-            ctx.filter_metadata.insert("skill_uuid".to_string(), skill_uuid);
+        // Priority 1: direct UUID from env (read at startup)
+        if let Some(ref skill_uuid) = self.skill_uuid {
+            tracing::info!(skill_uuid = %skill_uuid, "using skill UUID from environment variable");
+            ctx.filter_metadata.insert("skill_uuid".to_string(), skill_uuid.clone());
             ctx.filter_metadata.insert("skill_resolution_method".to_string(), "env_uuid".to_string());
             return Ok(FilterAction::Continue);
         }
 
-        // Priority 2: Check for skill name in environment
-        if let Some(skill_name) = self.get_skill_name_from_env() {
-            tracing::info!(
-                skill_name = %skill_name,
-                "resolving skill UUID from name via API"
-            );
+        // Priority 2: skill name from env (read at startup), resolve UUID via API per-request
+        if let Some(ref skill_name) = self.skill_name {
+            tracing::info!(skill_name = %skill_name, "resolving skill UUID from name via API");
 
-            match self.lookup_skill_by_name(&skill_name).await {
+            match self.lookup_skill_by_name(skill_name).await {
                 Ok(skill) => {
                     tracing::info!(
                         skill_name = %skill_name,
@@ -181,7 +172,7 @@ impl HttpFilter for SkillResolverFilter {
                         "successfully resolved skill UUID"
                     );
                     ctx.filter_metadata.insert("skill_uuid".to_string(), skill.uuid);
-                    ctx.filter_metadata.insert("skill_name".to_string(), skill_name);
+                    ctx.filter_metadata.insert("skill_name".to_string(), skill_name.clone());
                     ctx.filter_metadata.insert("skill_resolution_method".to_string(), "api_lookup".to_string());
                     return Ok(FilterAction::Continue);
                 }
@@ -197,7 +188,7 @@ impl HttpFilter for SkillResolverFilter {
             }
         }
 
-        // Priority 3: Neither UUID nor name set
+        // Priority 3: neither UUID nor name configured
         tracing::debug!("no skill UUID or name configured, continuing without skill");
         ctx.filter_metadata.insert("skill_resolution_method".to_string(), "none".to_string());
         Ok(FilterAction::Continue)

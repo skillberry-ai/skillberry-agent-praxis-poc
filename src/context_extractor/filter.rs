@@ -6,7 +6,7 @@
 use async_trait::async_trait;
 use regex::Regex;
 
-use super::config::{ContextExtractorConfig, HeaderExtractionRule, ValidationRules};
+use super::config::{ContextExtractorConfig, HeaderExtractionRule};
 use praxis_filter::{
     FilterAction, FilterError,
     BodyAccess, BodyMode,
@@ -35,7 +35,10 @@ struct CompiledRule {
 /// ```
 pub struct ContextExtractorFilter {
     rules: Vec<CompiledRule>,
-    global_validation: Option<ValidationRules>,
+    /// Global max-length constraint applied to every extracted value.
+    global_max_length: Option<usize>,
+    /// Global regex compiled once at construction time; applied to every extracted value.
+    global_pattern: Option<Regex>,
 }
 
 impl ContextExtractorFilter {
@@ -72,20 +75,26 @@ impl ContextExtractorFilter {
             rules.push(CompiledRule { rule: rule_cfg, pattern });
         }
 
-        // Validate that the global pattern compiles (stored as string, re-used per request).
-        let global_validation = if let Some(ref val) = cfg.validation {
-            if let Some(ref p) = val.pattern {
-                Regex::new(p).map_err(|e| -> FilterError {
-                    format!("context_extractor: invalid global validation pattern '{}': {e}", p)
+        let (global_max_length, global_pattern) = if let Some(ref val) = cfg.validation {
+            let pattern = val
+                .pattern
+                .as_deref()
+                .map(|p| {
+                    Regex::new(p).map_err(|e| -> FilterError {
+                        format!(
+                            "context_extractor: invalid global validation pattern '{}': {e}",
+                            p
+                        )
                         .into()
-                })?;
-            }
-            Some(val.clone())
+                    })
+                })
+                .transpose()?;
+            (val.max_length, pattern)
         } else {
-            None
+            (None, None)
         };
 
-        Ok(Box::new(Self { rules, global_validation }))
+        Ok(Box::new(Self { rules, global_max_length, global_pattern }))
     }
 }
 
@@ -136,7 +145,7 @@ impl HttpFilter for ContextExtractorFilter {
                 }
             };
 
-            validate_value(&value, rule, &compiled.pattern, &self.global_validation)?;
+            validate_value(&value, rule, &compiled.pattern, self.global_max_length, self.global_pattern.as_ref())?;
 
             tracing::debug!(
                 header = %rule.name,
@@ -155,7 +164,8 @@ fn validate_value(
     value: &str,
     rule: &HeaderExtractionRule,
     compiled_pattern: &Option<Regex>,
-    global_validation: &Option<ValidationRules>,
+    global_max_length: Option<usize>,
+    global_pattern: Option<&Regex>,
 ) -> Result<(), FilterError> {
     if let Some(max_len) = rule.max_length {
         if value.len() > max_len {
@@ -177,27 +187,23 @@ fn validate_value(
         }
     }
 
-    if let Some(global) = global_validation {
-        if let Some(max_len) = global.max_length {
-            if value.len() > max_len {
-                return Err(format!(
-                    "context_extractor: header '{}' value exceeds global max_length {} (got {})",
-                    rule.name, max_len, value.len()
-                )
-                .into());
-            }
+    if let Some(max_len) = global_max_length {
+        if value.len() > max_len {
+            return Err(format!(
+                "context_extractor: header '{}' value exceeds global max_length {} (got {})",
+                rule.name, max_len, value.len()
+            )
+            .into());
         }
-        if let Some(ref p) = global.pattern {
-            let pattern = Regex::new(p).map_err(|e| -> FilterError {
-                format!("context_extractor: failed to compile global pattern: {e}").into()
-            })?;
-            if !pattern.is_match(value) {
-                return Err(format!(
-                    "context_extractor: header '{}' value does not match global validation pattern",
-                    rule.name
-                )
-                .into());
-            }
+    }
+
+    if let Some(pattern) = global_pattern {
+        if !pattern.is_match(value) {
+            return Err(format!(
+                "context_extractor: header '{}' value does not match global validation pattern",
+                rule.name
+            )
+            .into());
         }
     }
 
