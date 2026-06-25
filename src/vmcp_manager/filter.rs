@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use mcp_client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait, McpService, Transport};
 use mcp_client::transport::SseTransport;
 use reqwest::Client;
@@ -241,14 +242,23 @@ impl HttpFilter for VmcpManagerFilter {
     }
 
     fn request_body_access(&self) -> BodyAccess {
-        BodyAccess::None
+        BodyAccess::ReadOnly
     }
 
     fn request_body_mode(&self) -> BodyMode {
         BodyMode::Stream
     }
 
-    async fn on_request(&self, ctx: &mut HttpFilterContext<'_>) -> Result<FilterAction, FilterError> {
+    async fn on_request(&self, _ctx: &mut HttpFilterContext<'_>) -> Result<FilterAction, FilterError> {
+        Ok(FilterAction::Continue)
+    }
+
+    async fn on_request_body(
+        &self,
+        ctx: &mut HttpFilterContext<'_>,
+        _body: &mut Option<Bytes>,
+        _end_of_stream: bool,
+    ) -> Result<FilterAction, FilterError> {
         let env_id = ctx.filter_metadata
             .get("env_id")
             .ok_or_else(|| {
