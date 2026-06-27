@@ -129,9 +129,10 @@ impl HttpFilter for ContextExtractorFilter {
 
             validate_value(&value, rule, &compiled.pattern, &self.global_validation)?;
 
-            tracing::debug!(
+            tracing::info!(
                 header = %rule.name,
                 metadata_key = %rule.metadata_key,
+                value = %value,
                 "extracted header to metadata"
             );
             ctx.filter_metadata.insert(rule.metadata_key.clone(), value);
