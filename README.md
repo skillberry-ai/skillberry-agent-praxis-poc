@@ -13,51 +13,83 @@ External [Praxis](https://github.com/praxis-proxy/praxis) filters for the Skillb
 | `vmcp_manager` | Creates Virtual MCP (VMCP) servers and fetches available MCP tools |
 | `mcp_tools_enricher` | Injects MCP tools into OpenAI-compatible chat completion request bodies |
 
-## Usage
+## Quickstart
 
-Add this crate as a dependency of the Praxis server:
+### 1. Check out Praxis at the pinned commit
+
+```console
+git clone https://github.com/praxis-proxy/praxis.git praxis
+cd praxis && git checkout 0bc9534e922a8be313331dd9f317356e5097d109
+```
+
+### 2. Add this crate as a dependency
+
+Insert one line into the Praxis workspace `Cargo.toml`:
 
 ```toml
-[dependencies]
+[workspace.dependencies]
 skillberry-praxis-filters = { git = "https://github.com/skillberry-ai/skillberry-praxis-filters.git", branch = "main" }
 ```
 
-The Praxis build system auto-discovers external filter crates via the `[package.metadata.praxis-filters]` marker and registers them at compile time.
+The Praxis build system auto-discovers external filter crates via the `[package.metadata.praxis-filters]` marker and registers them at compile time — no other source changes are needed inside the Praxis repo.
 
-### Building Praxis
+### 3. Build Praxis
 
 ```console
 cargo build --package praxis
 ```
 
-### Running Praxis with a custom config
-
-The `praxis` binary lives in the Praxis workspace's `target/` directory. Run it
-directly from the `praxis` checkout:
+Release build:
 
 ```console
-./target/debug/praxis -c /path/to/skillberry.yaml
+cargo build --release --package praxis
 ```
 
-Or use the release build after `cargo build --release`:
-
-```console
-./target/release/praxis -c /path/to/skillberry.yaml
-```
-
-To validate the config without starting the server:
-
-```console
-./target/debug/praxis -t -c /path/to/skillberry.yaml
-```
-
-### Rebuilding after filter updates
-
-Cargo caches git dependencies. When this repo changes, force a re-fetch before rebuilding:
+Force a re-fetch when this repo changes:
 
 ```console
 cargo update && cargo build --package praxis
 ```
+
+### 4. Run Skillberry services
+
+The filter chain calls the Skillberry Store API to resolve skills and manage VMCP servers. Ensure `skillberry-store` is running and reachable at the URL configured in `pipeline/skillberry.yaml` (default: `http://localhost:8000`).
+
+### 5. Run Praxis with the pipeline config
+
+```console
+./target/debug/praxis -c /path/to/skillberry-praxis-filters/pipeline/skillberry.yaml
+```
+
+Validate config without starting the server:
+
+```console
+./target/debug/praxis -t -c /path/to/skillberry-praxis-filters/pipeline/skillberry.yaml
+```
+
+### 6. Run the client emulation script
+
+```console
+export OPENAI_API_KEY=<your-key>
+python pipeline/emulate_client.py
+```
+
+See [Environment Variables](#environment-variables) for all tuneable settings.
+
+## Environment Variables
+
+| Env var | Default | Filter | Description |
+|---------|---------|--------|-------------|
+| `SKILL_UUID` | — | `skill_resolver` | Direct skill UUID (highest priority) |
+| `SKILL_NAME` | — | `skill_resolver` | Skill name resolved via store API (priority 2) |
+| `MCP_PROMPTS_POSITION` | `postfix` | `mcp_tools_enricher` | Where MCP system prompts are inserted relative to existing system messages: `prefix` (before first) or `postfix` (after last) |
+
+## Pipeline Folder
+
+| File | Purpose |
+|------|---------|
+| `pipeline/skillberry.yaml` | Praxis server config driving the full Skillberry filter chain |
+| `pipeline/emulate_client.py` | Client emulation script (LiteLLM → Praxis proxy) |
 
 ## Filter Chain
 
@@ -70,7 +102,7 @@ These filters are designed to work together in sequence:
 
 ## Configuration
 
-Full Praxis configuration (`praxis.yaml`):
+Full Praxis configuration (`pipeline/skillberry.yaml`):
 
 ```yaml
 listeners:
@@ -120,6 +152,7 @@ filter_chains:
         tool_choice: auto
         max_body_bytes: 10485760
         on_invalid: continue
+        prompts_position_env: "MCP_PROMPTS_POSITION"
 
       - filter: router
         routes:
