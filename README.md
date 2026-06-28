@@ -13,51 +13,98 @@ External [Praxis](https://github.com/praxis-proxy/praxis) filters for the Skillb
 | `vmcp_manager` | Creates Virtual MCP (VMCP) servers and fetches available MCP tools |
 | `mcp_tools_enricher` | Injects MCP tools into OpenAI-compatible chat completion request bodies |
 
-## Usage
+## Quickstart
 
-Add this crate as a dependency of the Praxis server:
+### 1. Check out Praxis at the pinned commit
+
+```console
+git clone https://github.com/praxis-proxy/praxis.git praxis
+cd praxis && git checkout 0bc9534e922a8be313331dd9f317356e5097d109
+```
+
+### 2. Add this crate as a dependency
+
+Three edits inside the Praxis checkout are required:
+
+**`Cargo.toml`** (workspace root) — declare the dependency:
 
 ```toml
-[dependencies]
+[workspace.dependencies]
 skillberry-praxis-filters = { git = "https://github.com/skillberry-ai/skillberry-praxis-filters.git", branch = "main" }
 ```
 
-The Praxis build system auto-discovers external filter crates via the `[package.metadata.praxis-filters]` marker and registers them at compile time.
+**`Cargo.toml`** (workspace root, bottom) — patch `praxis-proxy-filter` to use the local path so both this crate and Praxis resolve to the same copy (without this the build fails with a type mismatch):
 
-### Building Praxis
-
-```console
-cargo build --package praxis
+```toml
+[patch."https://github.com/praxis-proxy/praxis.git"]
+praxis-proxy-filter = { path = "filter" }
 ```
 
-### Running Praxis with a custom config
+**`server/Cargo.toml`** — add it to the server crate's `[dependencies]` so it is compiled in:
 
-The `praxis` binary lives in the Praxis workspace's `target/` directory. Run it
-directly from the `praxis` checkout:
-
-```console
-./target/debug/praxis -c /path/to/skillberry.yaml
+```toml
+[dependencies]
+skillberry-praxis-filters = { workspace = true }
 ```
 
-Or use the release build after `cargo build --release`:
+### 3. Build Praxis
 
 ```console
-./target/release/praxis -c /path/to/skillberry.yaml
+cargo update && cargo build --package praxis-proxy
 ```
 
-To validate the config without starting the server:
+> Use `--release` instead for a production deployment.
+
+### 4. Run Skillberry services
+
+The filter chain calls the Skillberry Store API to resolve skills and manage VMCP servers. Ensure [`skillberry-store`](https://github.com/skillberry-ai/skillberry-store) is running and reachable at the URL configured in `pipeline/skillberry.yaml` (default: `http://localhost:8000`).
+
+### 5. Run Praxis with the pipeline config
+
+Set at minimum a skill name or UUID, then start the server:
 
 ```console
-./target/debug/praxis -t -c /path/to/skillberry.yaml
+export SKILL_NAME="my-skill-name"  # replace with a skill loaded into the store
+./target/debug/praxis -c /path/to/skillberry-praxis-filters/pipeline/skillberry.yaml
 ```
 
-### Rebuilding after filter updates
+See [Environment Variables](#environment-variables) for the full list of tuneable settings.
 
-Cargo caches git dependencies. When this repo changes, force a re-fetch before rebuilding:
+Validate config without starting the server:
 
 ```console
-cargo update && cargo build --package praxis
+./target/debug/praxis -t -c /path/to/skillberry-praxis-filters/pipeline/skillberry.yaml
 ```
+
+### 6. Run the client emulation script
+
+Install the required dependency:
+
+```console
+pip install litellm
+```
+
+Then run:
+
+```console
+export OPENAI_API_KEY=<your-key>
+python pipeline/emulate_client.py
+```
+
+
+## Environment Variables
+
+| Env var | Default | Filter | Description |
+|---------|---------|--------|-------------|
+| `SKILL_UUID` | — | `skill_resolver` | Direct skill UUID (highest priority) |
+| `SKILL_NAME` | — | `skill_resolver` | Skill name resolved via store API (priority 2) |
+
+## Pipeline Folder
+
+| File | Purpose |
+|------|---------|
+| `pipeline/skillberry.yaml` | Praxis server config driving the full Skillberry filter chain |
+| `pipeline/emulate_client.py` | Client emulation script (LiteLLM → Praxis proxy) |
 
 ## Filter Chain
 
@@ -70,7 +117,7 @@ These filters are designed to work together in sequence:
 
 ## Configuration
 
-Full Praxis configuration (`praxis.yaml`):
+Full Praxis configuration (`pipeline/skillberry.yaml`):
 
 ```yaml
 listeners:
@@ -130,7 +177,7 @@ filter_chains:
         clusters:
           - name: llm_backend
             endpoints:
-              - "localhost:4000"
+                - "localhost:4000"  # replace with your LiteLLM / OpenAI-compatible proxy address
             connection_timeout_ms: 5000
             read_timeout_ms: 60000
             write_timeout_ms: 60000
