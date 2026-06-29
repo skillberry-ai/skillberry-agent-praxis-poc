@@ -5,3 +5,9 @@ plan-docs/
 
 # Generated pipeline config — expanded from *.tmpl at deploy time, may contain secrets
 pipeline/skillberry-agent-proxy.yaml
+
+# Python build artifacts
+worker/__pycache__/
+worker/*.egg-info/
+**/__pycache__/
+*.pyc
