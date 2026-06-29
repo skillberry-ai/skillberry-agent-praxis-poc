@@ -92,12 +92,9 @@ Open a new terminal:
 
 ```console
 cd ~/skillberry-praxis-filters
-.venv/bin/pip install -e worker/
-.venv/bin/uvicorn worker.main:app --host 0.0.0.0 --port 8001 --reload
+pip install -e worker/
+uvicorn worker.main:app --host 0.0.0.0 --port 8001 --reload
 ```
-
-> Run from the repo root — `worker.main` must be importable as a package from there.
-> Use the repo root `.venv`, not `worker/.venv`.
 
 ### 3. Start Praxis
 
@@ -111,6 +108,9 @@ export OPENAI_API_KEY="<your-key>"
 
 `scripts/start.sh` expands [`pipeline/skillberry-agent-proxy.yaml.tmpl`](pipeline/skillberry-agent-proxy.yaml.tmpl)
 via `envsubst` and starts Praxis with the generated config.
+
+**Note:** If needed, (re-)build it first (`./scripts/build-praxis.sh`) 
+
 
 ### 4. Verify
 
