@@ -52,8 +52,7 @@ response = completion(
     model="openai/rits/openai/gpt-oss-120b",
     messages=[{"role": "user", "content": "Show me your tools"}],
     extra_headers={
-        # Skillberry context header – processed by the context_extractor filter.
-        "x-skillberry-env-id": env_id,
+        "skillberry-context-env_id": env_id
     },
 )
 
