@@ -9,8 +9,8 @@ Usage
     # 1. Export your LiteLLM key
     export OPENAI_API_KEY=<your-key>
 
-    # 2. (Optional) override the proxy address if Praxis is not on localhost:8080
-    export OPENAI_API_BASE=http://localhost:8080/v1
+    # 2. (Optional) override the proxy address if Praxis is not on localhost:7000
+    export OPENAI_API_BASE=http://localhost:7000/v1
 
     # 3. Run
     python pipeline/test_client.py
@@ -18,7 +18,7 @@ Usage
 Environment variables
 ---------------------
 OPENAI_API_KEY   – Required. API key forwarded by LiteLLM to the upstream LLM.
-OPENAI_API_BASE  – Optional. Base URL of the Praxis proxy. Default: http://localhost:8080/v1
+OPENAI_API_BASE  – Optional. Base URL of the Praxis proxy. Default: http://localhost:7000/v1
 """
 
 import os
@@ -31,7 +31,7 @@ from litellm import completion
 # ---------------------------------------------------------------------------
 
 # The Praxis proxy address. Override via OPENAI_API_BASE if needed.
-os.environ.setdefault("OPENAI_API_BASE", "http://localhost:8080/v1")
+os.environ.setdefault("OPENAI_API_BASE", "http://localhost:7000/v1")
 
 # Ensure the API key is present – fail early with a clear message.
 if not os.environ.get("OPENAI_API_KEY"):

@@ -10,7 +10,7 @@ External [Praxis](https://github.com/praxis-proxy/praxis) filters for the Skillb
 Client
   │  POST /v1/chat/completions
   ▼
-Praxis port 8080 — client-ingress
+Praxis port 7000 — client-ingress
   │  context_extractor, headers, router
   │  (headers injects agent config from Praxis env vars)
   ▼
@@ -115,7 +115,7 @@ via `envsubst` and starts Praxis with the generated config.
 ### 4. Verify
 
 ```console
-curl http://localhost:8080/health    # Praxis
+curl http://localhost:7000/health    # Praxis
 curl http://localhost:8001/health    # Worker
 ```
 
@@ -131,13 +131,13 @@ Set required env vars and run:
 
 ```console
 export OPENAI_API_KEY=<your-key>
-export OPENAI_API_BASE=http://localhost:8080/v1   # default, can omit
+export OPENAI_API_BASE=http://localhost:7000/v1   # default, can omit
 
 python pipeline/emulate_client.py
 ```
 
 The script sends an OpenAI-compatible chat completion request through Praxis
-(port 8080) and prints the model's response. The `skillberry-context-env_id`
+(port 7000) and prints the model's response. The `skillberry-context-env_id`
 header is generated automatically per run.
 
 ---
