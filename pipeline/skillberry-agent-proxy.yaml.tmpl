@@ -23,11 +23,11 @@
 #                           e.g. my-litellm-proxy.com:4000
 
 listeners:
-  # ── Port 8080 — client-ingress (public) ────────────────────────────────────
+  # ── Port 7000 — client-ingress (public) ────────────────────────────────────
   # Receives external client requests. Applies security, injects agent config
   # as headers, then routes to the Skillberry Worker.
   - name: client-ingress
-    address: "0.0.0.0:8080"
+    address: "0.0.0.0:7000"
     filter_chains:
       - client-ingress-chain
 
