@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skillberry-worker"
+version = "0.1.0"
+description = "Skillberry Worker Service — thin agentic shim behind Praxis"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "langchain-openai>=0.3",
+    "langchain-core>=0.3",
+    "pydantic>=2.11",
+    "skillberry-agent-lib @ git+https://github.com/skillberry-ai/skillberry-agent.git#subdirectory=shared/python/skillberry_agent_lib",
+]
+
+[project.scripts]
+skillberry-worker = "worker.main:start"
+
+[tool.setuptools.packages.find]
+where = ["."]

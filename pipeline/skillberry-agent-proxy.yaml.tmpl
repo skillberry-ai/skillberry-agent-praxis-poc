@@ -1,0 +1,143 @@
+# Skillberry Agent Proxy — Praxis pipeline template
+#
+# This file is a template. Deploy with:
+#   envsubst < pipeline/skillberry-agent-proxy.yaml.tmpl \
+#             > pipeline/skillberry-agent-proxy.yaml
+#   praxis --config pipeline/skillberry-agent-proxy.yaml
+#
+# Praxis environment variables consumed by this template
+# -------------------------------------------------------
+# Agent configuration (injected as headers into worker requests):
+#   SKILL_UUID                  Direct skill UUID (optional)
+#   SKILL_NAME                  Skill name to resolve (optional)
+#   ENABLE_THINK_LOGS           default: false
+#   USE_AGENT_TOOLS             default: true
+#   USE_AGENT_PROMPTS           default: true
+#   MCP_PROMPTS_POSITION        default: postfix
+#   REACT_RECURSION_LIMIT       default: 20
+#   SKILLBERRY_TOOLS_URL        default: http://127.0.0.1:8000
+#
+# LLM provider credentials and routing (used by llm-egress):
+#   OPENAI_API_KEY          API key injected into every LLM request (Bearer token)
+#   SPAPRAXIS_LITELLMPROXY  LiteLLM proxy endpoint as host:port
+#                           e.g. my-litellm-proxy.com:4000
+
+listeners:
+  # ── Port 8080 — client-ingress (public) ────────────────────────────────────
+  # Receives external client requests. Applies security, injects agent config
+  # as headers, then routes to the Skillberry Worker.
+  - name: client-ingress
+    address: "0.0.0.0:8080"
+    filter_chains:
+      - client-ingress-chain
+
+  # ── Port 8081 — llm-egress (loopback only) ─────────────────────────────────
+  # Receives LLM calls from the worker. Applies model routing, rewriting, and
+  # credential injection. Never reachable from outside the host.
+  - name: llm-egress
+    address: "127.0.0.1:8081"
+    filter_chains:
+      - llm-routing-chain
+
+filter_chains:
+
+  # ── client-ingress-chain ────────────────────────────────────────────────────
+  - name: client-ingress-chain
+    filters:
+
+      # Step 1: Extract Skillberry context headers into filter metadata
+      - filter: context_extractor
+        headers:
+          - name: x-skillberry-context-env-id
+            metadata_key: env_id
+            default: "default-env"
+            required: true
+            pattern: "^[a-zA-Z0-9_-]+$"
+            max_length: 64
+          - name: x-skillberry-context-user-id
+            metadata_key: user_id
+            default: "anonymous"
+            required: false
+            pattern: "^[a-zA-Z0-9_-]+$"
+            max_length: 64
+          - name: x-skillberry-context-session-id
+            metadata_key: session_id
+            required: false
+            pattern: "^[a-zA-Z0-9_-]+$"
+            max_length: 128
+
+      # Step 2: Inject agent configuration as request headers.
+      # Values are expanded from Praxis env vars at deploy time via envsubst.
+      # request_set always overwrites — client cannot influence these values.
+      # These headers are only present on the client-ingress → worker leg;
+      # the llm-egress listener never sees them.
+      - filter: headers
+        request_set:
+          - name: x-skillberry-skill-uuid
+            value: "${SKILL_UUID}"
+          - name: x-skillberry-skill-name
+            value: "${SKILL_NAME}"
+          - name: x-skillberry-enable-think-logs
+            value: "${ENABLE_THINK_LOGS}"
+          - name: x-skillberry-use-agent-tools
+            value: "${USE_AGENT_TOOLS}"
+          - name: x-skillberry-use-agent-prompts
+            value: "${USE_AGENT_PROMPTS}"
+          - name: x-skillberry-mcp-prompts-position
+            value: "${MCP_PROMPTS_POSITION}"
+          - name: x-skillberry-react-recursion-limit
+            value: "${REACT_RECURSION_LIMIT}"
+          - name: x-skillberry-tools-url
+            value: "${SKILLBERRY_TOOLS_URL}"
+
+      # Step 3: Route to the Skillberry Worker
+      - filter: router
+        routes:
+          - path_prefix: /
+            cluster: skillberry-worker
+
+      - filter: load_balancer
+        clusters:
+          - name: skillberry-worker
+            endpoints:
+              - "127.0.0.1:8001"
+            connection_timeout_ms: 5000
+            read_timeout_ms: 120000
+            write_timeout_ms: 30000
+
+  # ── llm-routing-chain ───────────────────────────────────────────────────────
+  - name: llm-routing-chain
+    filters:
+
+      # Extract model name into X-Model header for routing decisions
+      - filter: model_to_header
+        header: X-Model
+
+      # Route all traffic to the LiteLLM proxy.
+      # Endpoint is set via SPAPRAXIS_LITELLMPROXY env var (host:port, e.g. my-litellm-proxy.com:4000).
+      - filter: router
+        routes:
+          - path_prefix: /
+            cluster: litellm-proxy
+
+      # Inject API key from Praxis environment
+      - filter: credential_injection
+        clusters:
+          - name: litellm-proxy
+            header: Authorization
+            env_var: OPENAI_API_KEY
+            header_prefix: "Bearer "
+
+      # SPAPRAXIS_LITELLMPROXY must be host:port only (expanded at deploy time via envsubst)
+      - filter: load_balancer
+        clusters:
+          - name: litellm-proxy
+            endpoints:
+              - "${SPAPRAXIS_LITELLMPROXY}"
+
+      # Inject Praxis-Token-* headers on response for token usage aggregation
+      - filter: token_usage_headers
+
+runtime:
+  threads: 4
+  max_connections: 10000

@@ -60,7 +60,7 @@ filter_chains:
         clusters:
           - name: llm_backend
             endpoints:
-                - "skillberry-1.vpc.cloud9.ibm.com:4000"  # replace with your LiteLLM / OpenAI-compatible proxy address
+                - "my-litellm-proxy.com:4000"  # replace with your LiteLLM / OpenAI-compatible proxy address
             connection_timeout_ms: 5000
             read_timeout_ms: 60000
             write_timeout_ms: 60000
