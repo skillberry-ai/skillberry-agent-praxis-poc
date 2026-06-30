@@ -14,7 +14,7 @@ both depend on it being reachable at `SKILLBERRY_STORE_URL` (default: `http://12
 
 ### Skillberry Benchmarks (forked)
 The benchmark is run from a fork of the Tau2 benchmark suite at
-[aviweit/tau2-bench](https://github.com/aviweit/tau2-bench), branch `skillberry-praxis-poc`.
+[aviweit/skillberry-benchmarks](https://github.com/aviweit/skillberry-benchmarks), branch `skillberry-praxis-poc`.
 The fork includes tailored configuration for the Praxis Skillberry proxy agent: the `SPA` (Skillberry
 Proxy Agent) flag routes all agent calls through Praxis on port 7000 enabling end-to-end evaluation of the full Praxis pipeline.
 
@@ -69,9 +69,9 @@ cargo update && cargo build --package praxis-proxy
 
 ```console
 cd ~
-git clone https://github.com/aviweit/tau2-bench.git
-cd tau2-bench
-git checkout <BRANCH_NAME>
+git clone https://github.com/aviweit/skillberry-benchmarks.git
+cd skillberry-benchmarks
+git checkout skillberry-praxis-poc
 ```
 
 ---
