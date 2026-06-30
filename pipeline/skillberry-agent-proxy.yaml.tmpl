@@ -45,28 +45,7 @@ filter_chains:
   - name: client-ingress-chain
     filters:
 
-      # Step 1: Extract Skillberry context headers into filter metadata
-      - filter: context_extractor
-        headers:
-          - name: x-skillberry-context-env-id
-            metadata_key: env_id
-            default: "default-env"
-            required: true
-            pattern: "^[a-zA-Z0-9_-]+$"
-            max_length: 64
-          - name: x-skillberry-context-user-id
-            metadata_key: user_id
-            default: "anonymous"
-            required: false
-            pattern: "^[a-zA-Z0-9_-]+$"
-            max_length: 64
-          - name: x-skillberry-context-session-id
-            metadata_key: session_id
-            required: false
-            pattern: "^[a-zA-Z0-9_-]+$"
-            max_length: 128
-
-      # Step 2: Inject agent configuration as request headers.
+      # Inject agent configuration as request headers.
       # Values are expanded from Praxis env vars at deploy time via envsubst.
       # request_set always overwrites — client cannot influence these values.
       # These headers are only present on the client-ingress → worker leg;
