@@ -1,15 +1,12 @@
-# skillberry-agent-praxis-poc
+# skillberry-praxis-filters
 
 > ⚠️ **Work in Progress** — This repository is actively evolving. Features, APIs, and configuration may change at any time.
 
 Deployment layer that turns [Praxis](https://github.com/praxis-proxy/praxis) into the Skillberry agent gateway.
 
-It provides the Praxis pipeline configuration (listeners, filter chains, credential injection) and the Skillberry Worker — a lightweight Python service that runs the LangGraph ReAct loop.
+It provides the Praxis pipeline configuration (listeners, filter chains, credential injection) and the Skillberry Worker — a lightweight Python service that runs the LangGraph ReAct loop, including skill resolution, VMCP server lifecycle, and MCP tool fetching.
 
-All LLM routing, provider credentials, and agent configuration are owned by Praxis. 
-
-The worker contains no secrets and no provider-specific code and is solely based on the [skillberry-agent library](https://github.com/skillberry-ai/skillberry-agent/tree/main/shared/python/skillberry_agent_lib).
-
+All LLM routing and provider credentials are owned by Praxis. Agent configuration is injected by Praxis into the worker (as `x-skillberry-*` request headers).
 
 ## How It Works
 
@@ -18,41 +15,69 @@ Client
   │  POST /v1/chat/completions
   ▼
 Praxis port 7000 — client-ingress
-  │  context_extractor, headers, router
-  │  (headers injects agent config from Praxis env vars)
+  │  headers filter injects agent config from Praxis env vars as x-skillberry-* headers
+  │  router + load_balancer → Skillberry Worker
   ▼
 Skillberry Worker (port 8001)   ← Python / FastAPI — this repo: worker/
-  │  LangGraph ReAct loop
+  │  Reads agent config from x-skillberry-* headers (set by Praxis)
+  │  Resolves skill UUID, creates / retrieves VMCP server, fetches MCP tools
+  │  Runs LangGraph ReAct loop
   │  LLM calls loop back via Praxis port 8081
   ▼
 Praxis port 8081 — llm-egress (loopback only)
-  │  model_to_header, openai_responses_model_rewrite
-  │  router, credential_injection, token_usage_headers
+  │  model_to_header, router, credential_injection, token_usage_headers
   ▼
-LLM provider (Litellm Proxy / OpenAI / Anthropic / Ollama) # Note: currently Litellm proxy is supported
+LLM provider (LiteLLM proxy / OpenAI / Ollama / WatsonX)
 ```
 
 ---
 
-## Praxis Filters (Rust)
+## Praxis Filters Used
 
-Used in [`pipeline/skillberry-agent-proxy.yaml.tmpl`](pipeline/skillberry-agent-proxy.yaml.tmpl):
+Configured in [`pipeline/skillberry-agent-proxy.yaml.tmpl`](pipeline/skillberry-agent-proxy.yaml.tmpl).
 
-| Filter | Listener | Description |
-|--------|----------|-------------|
-| `context_extractor` | client-ingress | Extracts `skillberry-context-*` request headers into filter metadata |
-| `headers` | client-ingress | Injects agent config env vars as `x-skillberry-*` headers into worker requests |
-| `router` | client-ingress | Routes all requests to the Skillberry Worker (`127.0.0.1:8001`) |
-| `load_balancer` | client-ingress | Forwards to the worker endpoint |
-| `model_to_header` | llm-egress | Copies the `model` field to `X-Model` header |
-| `router` | llm-egress | Routes all LLM traffic to the LiteLLM proxy (`SPAPRAXIS_LITELLMPROXY`) |
-| `credential_injection` | llm-egress | Injects `OPENAI_API_KEY` as `Authorization: Bearer` |
-| `load_balancer` | llm-egress | Forwards to the LiteLLM proxy endpoint |
-| `token_usage_headers` | llm-egress | Injects `Praxis-Token-*` headers on responses |
+### client-ingress (port 7000)
+
+| Filter | Description |
+|--------|-------------|
+| `headers` | Injects agent config from Praxis env vars as `x-skillberry-*` headers into every worker request. |
+| `router` | Routes all traffic to the Skillberry Worker (`127.0.0.1:8001`). |
+| `load_balancer` | Forwards to the worker endpoint with configured timeouts (connect 5 s, read 120 s). |
+
+### llm-egress (port 8081, loopback only)
+
+| Filter | Description |
+|--------|-------------|
+| `model_to_header` | Promotes the `model` field from the JSON request body to `X-Model` header. |
+| `router` | Routes all LLM traffic to the configured upstream cluster. |
+| `credential_injection` | Injects `OPENAI_API_KEY` as `Authorization: Bearer` before the request leaves the host. The worker does not deal with authentication. |
+| `load_balancer` | Forwards to the LLM upstream endpoint (set via `SPAPRAXIS_LITELLMPROXY`) or to native provider endpoints. |
+| `token_usage_headers` | Injects `Praxis-Token-Input`, `Praxis-Token-Output`, `Praxis-Token-Total` response headers when token usage metadata is present. |
+
+---
 
 ## Skillberry Worker (Python)
 
 See [`worker/README.md`](worker/README.md) for quick-start instructions.
+
+The worker is a FastAPI service with four endpoints:
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/chat/completions` | Run the agentic ReAct loop; return OpenAI-compatible response |
+| `GET`  | `/trajectory` | Tool-call trajectory for this session |
+| `POST` | `/disconnect` | Tear down the VMCP server and purge the trajectory |
+| `GET`  | `/health` | Liveness probe |
+
+Per request it:
+1. Reads agent config from `x-skillberry-*` headers (injected by Praxi)
+2. Resolves the skill UUID (direct from header, or via `skillberry-store` API lookup by name)
+3. Creates or retrieves a VMCP server for the session's `env_id`
+4. Fetches MCP tools from the VMCP server over SSE
+5. Merges client-supplied tools with MCP tools
+6. Injects MCP prompts into the message list
+7. Builds the LLM (pointing at Praxis llm-egress port 8081) and runs the LangGraph ReAct loop
+8. Returns an OpenAI-compatible `chat.completion` response
 
 ---
 
@@ -60,47 +85,16 @@ See [`worker/README.md`](worker/README.md) for quick-start instructions.
 
 ❗Ensure that the [skillberry-store](https://github.com/skillberry-ai/skillberry-store) is running.
 
-### 1. Build the Praxis filters
-
-Check out Praxis at the pinned commit:
+### 1. Build Praxis
 
 ```console
 cd ~
 git clone https://github.com/praxis-proxy/praxis.git praxis
 cd praxis && git checkout 0bc9534e922a8be313331dd9f317356e5097d109
-```
-
-Add this crate as a dependency — three edits inside the Praxis checkout:
-
-**`Cargo.toml`** (workspace root):
-
-```toml
-[workspace.dependencies]
-skillberry-praxis-filters = { git = "https://github.com/skillberry-ai/skillberry-praxis-filters.git", branch = "main" }
-
-[patch."https://github.com/praxis-proxy/praxis.git"]
-praxis-proxy-filter = { path = "filter" }
-```
-
-**`server/Cargo.toml`**:
-
-```toml
-[dependencies]
-skillberry-praxis-filters = { workspace = true }
-```
-
-Build:
-
-```console
-cargo update && cargo build --package praxis-proxy
+cargo build --package praxis-proxy
 ```
 
 ### 2. Start the Skillberry Worker
-
-Thin agentic shim behind Praxis. Owns the LangGraph ReAct loop and three
-session endpoints.
-
-Open a new terminal:
 
 ```console
 cd ~/skillberry-praxis-filters
@@ -110,50 +104,32 @@ uvicorn worker.main:app --host 0.0.0.0 --port 8001 --reload
 
 ### 3. Start Praxis
 
-Open a new terminal:
-
 Set required env vars and run:
 
 ```console
 export SKILL_NAME="my-skill"          # or SKILL_UUID=<uuid>
 export OPENAI_API_KEY="<your-key>"
-export SPAPRAXIS_LITELLMPROXY="<your-litellm-proxy>" # host:port
+export SPAPRAXIS_LITELLMPROXY="<your-litellm-proxy>"  # host:port
 ./scripts/start.sh
 ```
 
-`scripts/start.sh` expands [`pipeline/skillberry-agent-proxy.yaml.tmpl`](pipeline/skillberry-agent-proxy.yaml.tmpl)
-via `envsubst` and starts Praxis with the generated config.
+`scripts/start.sh` expands [`pipeline/skillberry-agent-proxy.yaml.tmpl`](pipeline/skillberry-agent-proxy.yaml.tmpl) via `envsubst` and starts Praxis with the generated config.
 
-**Note:** If needed, (re-)build it first (`./scripts/build-praxis.sh`) 
-
+**Note:** If needed, (re-)build it first (`./scripts/build-praxis.sh`)
 
 ### 4. Verify
 
-Open a new terminal:
-
 ```console
-curl http://localhost:7000/health    # Praxis-ingress
+curl http://localhost:7000/health    # Praxis ingress
 curl http://localhost:8001/health    # Worker
 ```
 
 ### 5. Run the client emulator
 
-The script sends an OpenAI-compatible chat completion request through Praxis
-(port 7000) and prints the model's response. The `skillberry-context-env_id` (env_id)
-header is generated automatically per run.
-
-Install the dependency:
-
 ```console
 pip install litellm
-```
-
-Set required env vars and run:
-
-```console
 export OPENAI_API_KEY=<your-key>
-export OPENAI_API_BASE=http://localhost:7000/v1   # Praxis ingress
-
+export OPENAI_API_BASE=http://localhost:7000/v1
 python pipeline/emulate_client.py
 ```
 
@@ -162,20 +138,21 @@ python pipeline/emulate_client.py
 ## Repository Layout
 
 ```
-Cargo.toml                              Rust crate (Praxis filters)
-src/                                    Filter implementations (Rust)
-  context_extractor/
-worker/                                 Skillberry Worker (Python)
+worker/                                 Skillberry Worker (Python / FastAPI)
+  main.py                               HTTP endpoints, header parsing
+  agentic_graph.py                      Skill resolution, VMCP, MCP tools, ReAct loop
+  llm_client.py                         LangChain LLM pointed at Praxis llm-egress
   pyproject.toml
-  main.py / agentic_graph.py / llm_client.py
   README.md
 pipeline/
   skillberry-agent-proxy.yaml.tmpl      Two-listener Praxis pipeline template
   skillberry-agent-proxy.yaml           Generated at deploy time (gitignored)
   emulate_client.py                     Client emulation script
 scripts/
-  start.sh                              envsubst + praxis launcher
+  start.sh                              envsubst + Praxis launcher
   build-praxis.sh                       Builds the Praxis binary
+docs/
+  tau2-praxis-run.md                    Tau2 benchmark walkthrough
 ```
 
 ## Environment Variables
@@ -185,14 +162,14 @@ scripts/
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SKILL_UUID` | — | Direct skill UUID (optional) |
-| `SKILL_NAME` | — | Skill name to resolve (optional) |
+| `SKILL_NAME` | — | Skill name — resolved to UUID via skillberry-store API (optional) |
 | `ENABLE_THINK_LOGS` | `false` | Include `<think>` block in response |
-| `USE_AGENT_TOOLS` | `true` | Pass client-supplied tools to ReAct loop |
-| `USE_AGENT_PROMPTS` | `true` | Pass system messages to ReAct loop |
+| `USE_AGENT_TOOLS` | `true` | Pass client-supplied tools to the ReAct loop |
+| `USE_AGENT_PROMPTS` | `true` | Pass system messages to the ReAct loop |
 | `MCP_PROMPTS_POSITION` | `postfix` | MCP prompt injection position (`prefix`/`postfix`) |
 | `REACT_RECURSION_LIMIT` | `20` | LangGraph ReAct max iterations |
 | `SKILLBERRY_STORE_URL` | `http://127.0.0.1:8000` | Skillberry Store Service URL |
-| `OPENAI_API_KEY` | — | API key injected into LLM requests |
+| `OPENAI_API_KEY` | — | API key injected by Praxis into every outbound LLM request |
 | `SPAPRAXIS_LITELLMPROXY` | — | LiteLLM proxy endpoint (`host:port`) |
 
 **Worker-owned** (set on the worker process):
