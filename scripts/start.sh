@@ -15,7 +15,11 @@
 #   MCP_PROMPTS_POSITION              — default: postfix
 #   REACT_RECURSION_LIMIT             — default: 20
 #   SKILLBERRY_STORE_URL              — default: http://127.0.0.1:8000
-#   OPENAI_API_KEY                    — provider credentials
+#   SPAPRAXIS_MODEL                   — model name injected into every LLM request
+#   SPAPRAXIS_TEMPERATURE             — temperature injected into every LLM request
+#   SPAPRAXIS_API_KEY                 — provider API key injected into every outbound
+#                                       LLM request; client key is never forwarded
+#   SPAPRAXIS_LITELLMPROXY            — LiteLLM proxy endpoint (host:port)
 #
 # Worker environment variables (the worker process reads these itself):
 #   LLM_BASE_URL        — default: http://127.0.0.1:8081/v1
@@ -41,6 +45,23 @@ export REACT_RECURSION_LIMIT="${REACT_RECURSION_LIMIT:-20}"
 export SKILLBERRY_STORE_URL="${SKILLBERRY_STORE_URL:-http://127.0.0.1:8000}"
 export SKILL_UUID="${SKILL_UUID:-}"
 export SKILL_NAME="${SKILL_NAME:-}"
+
+# Validate required LLM policy vars — fail early with a clear message.
+if [[ -z "${SPAPRAXIS_MODEL:-}" ]]; then
+    echo "ERROR: SPAPRAXIS_MODEL is not set."
+    echo "  Set it to the model name Praxis should use for all LLM calls."
+    exit 1
+fi
+if [[ -z "${SPAPRAXIS_TEMPERATURE:-}" ]]; then
+    echo "ERROR: SPAPRAXIS_TEMPERATURE is not set."
+    echo "  Set it to the temperature Praxis should use for all LLM calls (e.g. 0.0)."
+    exit 1
+fi
+if [[ -z "${SPAPRAXIS_API_KEY:-}" ]]; then
+    echo "ERROR: SPAPRAXIS_API_KEY is not set."
+    echo "  Set it to the provider API key for outbound LLM requests."
+    exit 1
+fi
 
 echo "Expanding pipeline template..."
 envsubst < "${TMPL}" > "${CONF}"

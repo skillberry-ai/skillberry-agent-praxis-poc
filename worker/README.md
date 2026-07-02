@@ -48,10 +48,37 @@ curl http://localhost:7010/health
 | `POST` | `/disconnect` | Tear down VMCP server and purge trajectory |
 | `GET` | `/health` | Liveness probe |
 
-## Agent configuration
+## Configuration injected by Praxis
 
-Agent config (`SKILL_UUID`, `SKILL_NAME`, etc.) is **not** read from env vars
-by the worker. Praxis injects it as `x-skillberry-*` request headers via the
-`headers` filter in [`pipeline/skillberry-agent-proxy.yaml.tmpl`](../pipeline/skillberry-agent-proxy.yaml.tmpl).
+The worker never reads provider credentials, model names, or LLM parameters
+from its own environment. Praxis owns all of this and injects it as
+`x-skillberry-*` request headers via the `headers` filter in
+[`pipeline/skillberry-agent-proxy.yaml.tmpl`](../pipeline/skillberry-agent-proxy.yaml.tmpl).
+
+### Agent configuration headers
+
+| Header | Praxis env var | Default |
+|--------|---------------|---------|
+| `x-skillberry-skill-uuid` | `SKILL_UUID` | — |
+| `x-skillberry-skill-name` | `SKILL_NAME` | — |
+| `x-skillberry-enable-think-logs` | `ENABLE_THINK_LOGS` | `false` |
+| `x-skillberry-use-agent-tools` | `USE_AGENT_TOOLS` | `true` |
+| `x-skillberry-use-agent-prompts` | `USE_AGENT_PROMPTS` | `true` |
+| `x-skillberry-mcp-prompts-position` | `MCP_PROMPTS_POSITION` | `postfix` |
+| `x-skillberry-react-recursion-limit` | `REACT_RECURSION_LIMIT` | `20` |
+| `x-skillberry-tools-url` | `SKILLBERRY_STORE_URL` | `http://127.0.0.1:8000` |
+
+### LLM policy headers
+
+The client-supplied `model` and `temperature` from the request body are
+**ignored**. Praxis injects the authoritative values:
+
+| Header | Praxis env var | Notes |
+|--------|---------------|-------|
+| `x-skillberry-llm-model` | `SPAPRAXIS_MODEL` | Required |
+| `x-skillberry-llm-temperature` | `SPAPRAXIS_TEMPERATURE` | Required |
+
+The provider API key is handled separately by the `credential_injection` filter
+on llm-egress (`SPAPRAXIS_API_KEY`) — the worker never sees or forwards it.
 
 To start Praxis with the full pipeline, see [`scripts/start.sh`](../scripts/start.sh).

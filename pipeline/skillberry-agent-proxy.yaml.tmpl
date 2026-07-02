@@ -17,8 +17,17 @@
 #   REACT_RECURSION_LIMIT       default: 20
 #   SKILLBERRY_STORE_URL        default: http://127.0.0.1:8000
 #
+# LLM policy (injected as headers into worker requests; worker uses these
+# values when building every LLM call — client-supplied model/temperature
+# are ignored):
+#   SPAPRAXIS_MODEL         Model name forwarded to the worker (required)
+#   SPAPRAXIS_TEMPERATURE   Temperature forwarded to the worker (required)
+#
 # LLM provider credentials and routing (used by llm-egress):
-#   OPENAI_API_KEY          API key injected into every LLM request (Bearer token)
+#   SPAPRAXIS_API_KEY       API key injected into every outbound LLM request
+#                           (Bearer token). The client's Authorization header
+#                           is overwritten — the client key never reaches the
+#                           upstream provider.
 #   SPAPRAXIS_LITELLMPROXY  LiteLLM proxy endpoint as host:port
 #                           e.g. my-litellm-proxy.com:4000
 
@@ -70,6 +79,12 @@ filter_chains:
             value: "${REACT_RECURSION_LIMIT}"
           - name: x-skillberry-tools-url
             value: "${SKILLBERRY_STORE_URL}"
+          # LLM policy — overrides whatever the client sends.
+          # The worker reads these headers and ignores the client's model/temperature.
+          - name: x-skillberry-llm-model
+            value: "${SPAPRAXIS_MODEL}"
+          - name: x-skillberry-llm-temperature
+            value: "${SPAPRAXIS_TEMPERATURE}"
 
       # Step 2: Route to the Skillberry Worker
       - filter: router
@@ -103,12 +118,14 @@ filter_chains:
           - path_prefix: /
             cluster: litellm-proxy
 
-      # Inject API key from Praxis environment
+      # Inject API key from Praxis environment.
+      # Overwrites any Authorization header the worker sends — the client's
+      # key never reaches the upstream provider.
       - filter: credential_injection
         clusters:
           - name: litellm-proxy
             header: Authorization
-            env_var: OPENAI_API_KEY
+            env_var: SPAPRAXIS_API_KEY
             header_prefix: "Bearer "
 
       # SPAPRAXIS_LITELLMPROXY must be host:port only (expanded at deploy time via envsubst)
