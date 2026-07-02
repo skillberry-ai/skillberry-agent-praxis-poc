@@ -22,10 +22,8 @@ def build_llm(model: str, temperature: float) -> ChatOpenAI:
     through the Praxis llm-egress listener.
 
     Args:
-        model:       Model name from the x-skillberry-llm-model header
-                     (set by Praxis from SPAPRAXIS_MODEL). Not the client value.
-        temperature: Temperature from the x-skillberry-llm-temperature header
-                     (set by Praxis from SPAPRAXIS_TEMPERATURE). Not the client value.
+        model:       Model name set by Praxis from SPAPRAXIS_MODEL.
+        temperature: Temperature set by Praxis from SPAPRAXIS_TEMPERATURE.
     """
     return ChatOpenAI(
         model=model,
