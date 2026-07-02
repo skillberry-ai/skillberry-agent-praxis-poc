@@ -15,12 +15,13 @@ WORKER_LOG_LEVEL    Python log level        default: INFO
 WORKER_LOG_FILE     Log file path           default: /tmp/worker.log
 WORKER_PORT         HTTP listen port        default: 7010
 
-Agent configuration — injected by Praxis as x-skillberry-* request headers
----------------------------------------------------------------------------
+Configuration injected by Praxis as x-skillberry-* request headers
+-------------------------------------------------------------------
 Praxis expands its own env vars into the pipeline config at deploy time
 (envsubst) and injects them via the built-in `headers` filter on the
-client-ingress → worker leg. The worker reads them from headers only.
+client-ingress → worker leg. The worker reads them from headers.
 
+Agent configuration:
 x-skillberry-skill-uuid             SKILL_UUID
 x-skillberry-skill-name             SKILL_NAME
 x-skillberry-enable-think-logs      ENABLE_THINK_LOGS       default: false
@@ -29,6 +30,10 @@ x-skillberry-use-agent-prompts      USE_AGENT_PROMPTS       default: true
 x-skillberry-mcp-prompts-position   MCP_PROMPTS_POSITION    default: postfix
 x-skillberry-react-recursion-limit  REACT_RECURSION_LIMIT   default: 20
 x-skillberry-tools-url              SKILLBERRY_STORE_URL    default: http://127.0.0.1:8000
+
+LLM policy (Praxis overrides — client-supplied model/temperature are ignored):
+x-skillberry-llm-model              SPAPRAXIS_MODEL         (required)
+x-skillberry-llm-temperature        SPAPRAXIS_TEMPERATURE   (required)
 """
 import json
 import logging
@@ -102,9 +107,9 @@ class Tool(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    model: str = Field(..., description="Model string; forwarded to Praxis llm-egress as-is")
+    model: str = Field(..., description="Client-supplied model; ignored — Praxis injects the real model via x-skillberry-llm-model")
     messages: List[ChatMessage]
-    temperature: float = Field(0.0, ge=0, le=2)
+    temperature: float = Field(0.0, ge=0, le=2, description="Client-supplied temperature; ignored — Praxis injects the real value via x-skillberry-llm-temperature")
     max_tokens: int = Field(8192, gt=0)
     tools: Optional[List[Tool]] = None
     tool_choice: Optional[str] = "auto"
@@ -137,13 +142,25 @@ def _safe_int(value: Optional[str], default: int) -> int:
 
 
 def _extract_agent_config(request: Request) -> dict:
-    """Read agent configuration from x-skillberry-* headers injected by Praxis.
+    """Read agent and LLM policy configuration from x-skillberry-* headers injected by Praxis.
 
     Praxis expands its own env vars into the pipeline config at deploy time
     (envsubst) and sets these headers via the built-in `headers` filter on every
     request forwarded to the worker. The worker never reads os.environ for these.
+
+    LLM policy (model, temperature) is included here — Praxis injects
+    SPAPRAXIS_MODEL and SPAPRAXIS_TEMPERATURE so the client-supplied values
+    in the request body are intentionally ignored.
     """
     h = request.headers
+
+    raw_temp = h.get("x-skillberry-llm-temperature")
+    try:
+        llm_temperature = float(raw_temp) if raw_temp is not None else 0.0
+    except (ValueError, TypeError):
+        logger.warning(f"Invalid x-skillberry-llm-temperature '{raw_temp}', using 0.0")
+        llm_temperature = 0.0
+
     return {
         "skill_uuid":            h.get("x-skillberry-skill-uuid"),
         "skill_name":            h.get("x-skillberry-skill-name"),
@@ -153,6 +170,8 @@ def _extract_agent_config(request: Request) -> dict:
         "mcp_prompts_position":  h.get("x-skillberry-mcp-prompts-position", "postfix"),
         "react_recursion_limit": _safe_int(h.get("x-skillberry-react-recursion-limit"), 20),
         "tools_url":             h.get("x-skillberry-tools-url", "http://127.0.0.1:8000"),
+        "llm_model":             h.get("x-skillberry-llm-model", "gpt-4o"),
+        "llm_temperature":       llm_temperature,
     }
 
 
@@ -216,25 +235,32 @@ def _build_response(llm_response: Any, model: str) -> Dict[str, Any]:
 @app.post("/v1/chat/completions", tags=["chat"])
 @app.post("/chat/completions", tags=["chat"])
 def chat_completions(chat_request: ChatRequest, request: Request):
-    logger.info(
-        f"POST /v1/chat/completions model={chat_request.model} "
-        f"msgs={len(chat_request.messages)} tools={len(chat_request.tools or [])}"
-    )
     skillberry_context = _extract_skillberry_context(request)
     agent_config = _extract_agent_config(request)
+
+    # LLM policy comes from Praxis (SPAPRAXIS_MODEL / SPAPRAXIS_TEMPERATURE).
+    # Defaults: model="gpt-4o", temperature=0.0 when headers are absent.
+    model = agent_config["llm_model"]
+    temperature = agent_config["llm_temperature"]
+
+    logger.info(
+        f"POST /v1/chat/completions model={model} (client={chat_request.model}) "
+        f"temperature={temperature} msgs={len(chat_request.messages)} "
+        f"tools={len(chat_request.tools or [])}"
+    )
     chat_messages = [m.to_langchain() for m in chat_request.messages]
     agent_tools = _convert_tools(chat_request.tools) if chat_request.tools else None
 
     result = execute_agentic_graph(
         chat_messages=chat_messages,
         skillberry_context=skillberry_context,
-        model=chat_request.model,
-        temperature=chat_request.temperature,
+        model=model,
+        temperature=temperature,
         agent_tools=agent_tools,
         agent_config=agent_config,
     )
 
-    return _build_response(result, model=chat_request.model)
+    return _build_response(result, model=model)
 
 
 @app.get("/trajectory", tags=["session"])

@@ -48,10 +48,12 @@ curl http://localhost:7010/health
 | `POST` | `/disconnect` | Tear down VMCP server and purge trajectory |
 | `GET` | `/health` | Liveness probe |
 
-## Agent configuration
+## Configuration injected by Praxis
 
-Agent config (`SKILL_UUID`, `SKILL_NAME`, etc.) is **not** read from env vars
-by the worker. Praxis injects it as `x-skillberry-*` request headers via the
-`headers` filter in [`pipeline/skillberry-agent-proxy.yaml.tmpl`](../pipeline/skillberry-agent-proxy.yaml.tmpl).
+The worker never reads provider credentials, model names, or LLM parameters
+from its own environment. Praxis owns all of this.
+
+The LLM provider API key is handled separately by the `credential_injection` filter
+on llm-egress (`SPAPRAXIS_API_KEY`).
 
 To start Praxis with the full pipeline, see [`scripts/start.sh`](../scripts/start.sh).

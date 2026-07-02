@@ -13,19 +13,25 @@ All LLM routing and provider credentials are owned by Praxis. Agent configuratio
 ```
 Client
   │  POST /v1/chat/completions
+  │  (client model/temperature/api-key are all ignored by Praxis)
   ▼
 Praxis port 7000 — client-ingress
-  │  headers filter injects agent config from Praxis env vars as x-skillberry-* headers
+  │  headers filter injects agent config + LLM policy from Praxis env vars
+  │  as x-skillberry-* headers into every worker request
   │  router + load_balancer → Skillberry Worker
   ▼
 Skillberry Worker (port 7010)   ← Python / FastAPI — this repo: worker/
   │  Reads agent config from x-skillberry-* headers (set by Praxis)
+  │  Reads model/temperature from x-skillberry-llm-* headers (SPAPRAXIS_MODEL /
+  │  SPAPRAXIS_TEMPERATURE) — client-supplied values are discarded
   │  Resolves skill UUID, creates / retrieves VMCP server, fetches MCP tools
   │  Runs LangGraph ReAct loop
   │  LLM calls loop back via Praxis port 8081
   ▼
 Praxis port 8081 — llm-egress (loopback only)
-  │  model_to_header, router, credential_injection, token_usage_headers
+  │  model_to_header, router, credential_injection (SPAPRAXIS_API_KEY),
+  │  token_usage_headers
+  │  (client Authorization header overwritten — client key never forwarded)
   ▼
 LLM provider (LiteLLM proxy / OpenAI / Ollama / WatsonX)
 ```
@@ -40,7 +46,7 @@ Configured in [`pipeline/skillberry-agent-proxy.yaml.tmpl`](pipeline/skillberry-
 
 | Filter | Description |
 |--------|-------------|
-| `headers` | Injects agent config from Praxis env vars as `x-skillberry-*` headers into every worker request. |
+| `headers` | Injects agent config and LLM policy (`SPAPRAXIS_MODEL`, `SPAPRAXIS_TEMPERATURE`) from Praxis env vars as `x-skillberry-*` headers into every worker request. Client-supplied model/temperature are ignored. |
 | `router` | Routes all traffic to the Skillberry Worker (`127.0.0.1:7010`). |
 | `load_balancer` | Forwards to the worker endpoint with configured timeouts (connect 5 s, read 120 s). |
 
@@ -50,7 +56,7 @@ Configured in [`pipeline/skillberry-agent-proxy.yaml.tmpl`](pipeline/skillberry-
 |--------|-------------|
 | `model_to_header` | Promotes the `model` field from the JSON request body to `X-Model` header. |
 | `router` | Routes all LLM traffic to the configured upstream cluster. |
-| `credential_injection` | Injects `OPENAI_API_KEY` as `Authorization: Bearer` before the request leaves the host. The worker does not deal with authentication. |
+| `credential_injection` | Injects `SPAPRAXIS_API_KEY` as `Authorization: Bearer` before the request leaves the host. Overwrites any client-supplied key — the client's credentials are never forwarded. |
 | `load_balancer` | Forwards to the LLM upstream endpoint (set via `SPAPRAXIS_LITELLMPROXY`) or to native provider endpoints. |
 | `token_usage_headers` | Injects `Praxis-Token-Input`, `Praxis-Token-Output`, `Praxis-Token-Total` response headers when token usage metadata is present. |
 
@@ -113,8 +119,10 @@ uvicorn worker.main:app --host 127.0.0.1 --port 7010 --reload
 Set required env vars and run:
 
 ```console
-export SKILL_NAME="my-skill"          # or SKILL_UUID=<uuid>
-export OPENAI_API_KEY="<your-key>"
+export SKILL_NAME="my-skill"           # or SKILL_UUID=<uuid>
+export SPAPRAXIS_MODEL="my-model"      # model name for all LLM calls
+export SPAPRAXIS_TEMPERATURE="0.0"     # temperature for all LLM calls
+export SPAPRAXIS_API_KEY="<your-key>"  # provider API key
 export SPAPRAXIS_LITELLMPROXY="<your-litellm-proxy>"  # host:port
 ./scripts/start.sh
 ```
@@ -134,10 +142,20 @@ curl http://localhost:7010/health    # Worker
 
 ```console
 pip install litellm
-export OPENAI_API_KEY=<your-key>
 export OPENAI_API_BASE=http://localhost:7000/v1
 python pipeline/emulate_client.py
 ```
+
+> The client does not need an API key — Praxis injects `SPAPRAXIS_API_KEY`
+> into every outbound LLM request and the client-supplied model/temperature
+> are overridden by `SPAPRAXIS_MODEL` / `SPAPRAXIS_TEMPERATURE`.
+>
+> ⚠️ **Workaround:** model and temperature are currently propagated via
+> `x-skillberry-llm-*` headers because no generic JSON body-field override
+> filter exists in Praxis yet. Track
+> [skillberry-ai/skillberry-agent-praxis-poc#13](https://github.com/skillberry-ai/skillberry-agent-praxis-poc/issues/13)
+> — once the upstream Praxis filter is ready, this header-based workaround can
+> be replaced with a native `llm-egress` body transform.
 
 ---
 
@@ -175,7 +193,9 @@ docs/
 | `MCP_PROMPTS_POSITION` | `postfix` | MCP prompt injection position (`prefix`/`postfix`) |
 | `REACT_RECURSION_LIMIT` | `20` | LangGraph ReAct max iterations |
 | `SKILLBERRY_STORE_URL` | `http://127.0.0.1:8000` | Skillberry Store Service URL |
-| `OPENAI_API_KEY` | — | API key injected by Praxis into every outbound LLM request |
+| `SPAPRAXIS_MODEL` | — | **Required.** Model name injected into every LLM request. Overrides the client-supplied model. |
+| `SPAPRAXIS_TEMPERATURE` | — | **Required.** Temperature injected into every LLM request. Overrides the client-supplied temperature. |
+| `SPAPRAXIS_API_KEY` | — | **Required.** Provider API key injected into every outbound LLM request (`Authorization: Bearer`). The client key is never forwarded. |
 | `SPAPRAXIS_LITELLMPROXY` | — | LiteLLM proxy endpoint (`host:port`) |
 
 **Worker-owned** (set on the worker process):
