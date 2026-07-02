@@ -70,7 +70,7 @@ The worker is a FastAPI service with four endpoints:
 | `GET`  | `/health` | Liveness probe |
 
 Per request it:
-1. Reads agent config from `x-skillberry-*` headers (injected by Praxi)
+1. Reads agent config from `x-skillberry-*` headers (injected by Praxis)
 2. Resolves the skill UUID (direct from header, or via `skillberry-store` API lookup by name)
 3. Creates or retrieves a VMCP server for the session's `env_id`
 4. Fetches MCP tools from the VMCP server over SSE
@@ -91,8 +91,14 @@ Per request it:
 cd ~
 git clone https://github.com/praxis-proxy/praxis.git praxis
 cd praxis && git checkout 0bc9534e922a8be313331dd9f317356e5097d109
-cargo build --package praxis-proxy
 ```
+
+```console
+cd ~/skillberry-praxis-filters
+./scripts/build-praxis.sh
+```
+
+No manual `Cargo.toml` edits are needed — the Skillberry filters are built into Praxis at the pinned commit.
 
 ### 2. Start the Skillberry Worker
 
