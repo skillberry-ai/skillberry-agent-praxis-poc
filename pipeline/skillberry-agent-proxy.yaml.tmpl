@@ -20,7 +20,11 @@
 # LLM policy (injected as headers into worker requests; worker uses these
 # values when building every LLM call — client-supplied model/temperature
 # are ignored):
-#   SPAPRAXIS_MODEL         Model name forwarded to the worker (required)
+#   SPAPRAXIS_MODEL         Model name forwarded to the worker (required).
+#                           Must match the model ID as registered in LiteLLM —
+#                           NOT the OpenAI SDK prefix (e.g. use
+#                           "rits/openai/gpt-oss-120b-a100", not
+#                           "openai/rits/openai/gpt-oss-120b-a100").
 #   SPAPRAXIS_TEMPERATURE   Temperature forwarded to the worker (required)
 #
 # LLM provider credentials and routing (used by llm-egress):
