@@ -15,13 +15,13 @@
 #   MCP_PROMPTS_POSITION              — default: postfix
 #   REACT_RECURSION_LIMIT             — default: 20
 #   SKILLBERRY_STORE_URL              — default: http://127.0.0.1:8000
-#   RITS_API_KEY / OPENAI_API_KEY / LITELLM_MASTER_KEY  — provider credentials
+#   OPENAI_API_KEY                    — provider credentials
 #
 # Worker environment variables (the worker process reads these itself):
 #   LLM_BASE_URL        — default: http://127.0.0.1:8081/v1
 #   WORKER_LOG_LEVEL    — default: INFO
 #   WORKER_LOG_FILE     — default: /tmp/worker.log
-#   WORKER_PORT         — default: 8001
+#   WORKER_PORT         — default: 7010
 
 set -euo pipefail
 

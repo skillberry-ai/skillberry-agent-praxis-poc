@@ -19,7 +19,6 @@ cd ~/skillberry-praxis-filters
 ```bash
 export LLM_BASE_URL="http://127.0.0.1:8081/v1"   # Praxis llm-egress
 export WORKER_LOG_LEVEL="INFO"
-export WORKER_PORT="8001"
 ```
 
 ### 3. Start the worker
@@ -27,7 +26,7 @@ export WORKER_PORT="8001"
 From the **repo root**:
 
 ```bash
-.venv/bin/uvicorn worker.main:app --host 0.0.0.0 --port 8001 --reload
+.venv/bin/uvicorn worker.main:app --host 127.0.0.1 --port 7010 --reload
 ```
 
 > `worker.main` must be importable as a package from the repo root.
@@ -36,7 +35,7 @@ From the **repo root**:
 ### 4. Verify
 
 ```bash
-curl http://localhost:8001/health
+curl http://localhost:7010/health
 # {"status": "ok"}
 ```
 

@@ -18,7 +18,7 @@ Praxis port 7000 — client-ingress
   │  headers filter injects agent config from Praxis env vars as x-skillberry-* headers
   │  router + load_balancer → Skillberry Worker
   ▼
-Skillberry Worker (port 8001)   ← Python / FastAPI — this repo: worker/
+Skillberry Worker (port 7010)   ← Python / FastAPI — this repo: worker/
   │  Reads agent config from x-skillberry-* headers (set by Praxis)
   │  Resolves skill UUID, creates / retrieves VMCP server, fetches MCP tools
   │  Runs LangGraph ReAct loop
@@ -41,7 +41,7 @@ Configured in [`pipeline/skillberry-agent-proxy.yaml.tmpl`](pipeline/skillberry-
 | Filter | Description |
 |--------|-------------|
 | `headers` | Injects agent config from Praxis env vars as `x-skillberry-*` headers into every worker request. |
-| `router` | Routes all traffic to the Skillberry Worker (`127.0.0.1:8001`). |
+| `router` | Routes all traffic to the Skillberry Worker (`127.0.0.1:7010`). |
 | `load_balancer` | Forwards to the worker endpoint with configured timeouts (connect 5 s, read 120 s). |
 
 ### llm-egress (port 8081, loopback only)
@@ -99,7 +99,7 @@ cargo build --package praxis-proxy
 ```console
 cd ~/skillberry-praxis-filters
 pip install -e worker/
-uvicorn worker.main:app --host 0.0.0.0 --port 8001 --reload
+uvicorn worker.main:app --host 127.0.0.1 --port 7010 --reload
 ```
 
 ### 3. Start Praxis
@@ -121,7 +121,7 @@ export SPAPRAXIS_LITELLMPROXY="<your-litellm-proxy>"  # host:port
 
 ```console
 curl http://localhost:7000/health    # Praxis ingress
-curl http://localhost:8001/health    # Worker
+curl http://localhost:7010/health    # Worker
 ```
 
 ### 5. Run the client emulator
@@ -179,7 +179,7 @@ docs/
 | `LLM_BASE_URL` | `http://127.0.0.1:8081/v1` | Praxis llm-egress URL |
 | `WORKER_LOG_LEVEL` | `INFO` | Log level |
 | `WORKER_LOG_FILE` | `/tmp/worker.log` | Log file path |
-| `WORKER_PORT` | `8001` | HTTP listen port |
+| `WORKER_PORT` | `7010` | HTTP listen port |
 
 ---
 

@@ -81,7 +81,7 @@ git checkout skillberry-praxis-poc
 ```console
 cd ~/skillberry-praxis-filters
 pip install -e worker/
-uvicorn worker.main:app --host 0.0.0.0 --port 8001 --reload
+uvicorn worker.main:app --host 127.0.0.1 --port 7010 --reload
 ```
 
 ---
