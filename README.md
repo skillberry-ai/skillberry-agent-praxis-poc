@@ -149,6 +149,13 @@ python pipeline/emulate_client.py
 > The client does not need an API key — Praxis injects `SPAPRAXIS_API_KEY`
 > into every outbound LLM request and the client-supplied model/temperature
 > are overridden by `SPAPRAXIS_MODEL` / `SPAPRAXIS_TEMPERATURE`.
+>
+> ⚠️ **Workaround:** model and temperature are currently propagated via
+> `x-skillberry-llm-*` headers because no generic JSON body-field override
+> filter exists in Praxis yet. Track
+> [skillberry-ai/skillberry-agent-praxis-poc#13](https://github.com/skillberry-ai/skillberry-agent-praxis-poc/issues/13)
+> — once the upstream Praxis filter is ready, this header-based workaround can
+> be replaced with a native `llm-egress` body transform.
 
 ---
 
