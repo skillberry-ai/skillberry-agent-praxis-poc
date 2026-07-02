@@ -38,7 +38,7 @@ CONF="${REPO_ROOT}/pipeline/skillberry-agent-proxy.yaml"
 # Set defaults for optional agent config env vars before expanding the template.
 # These are only applied if the variable is not already set in the environment.
 export ENABLE_THINK_LOGS="${ENABLE_THINK_LOGS:-false}"
-export USE_AGENT_TOOLS="${USE_AGENT_TOOLS:-true}"
+export USE_AGENT_TOOLS="${USE_AGENT_TOOLS:-false}"
 export USE_AGENT_PROMPTS="${USE_AGENT_PROMPTS:-true}"
 export MCP_PROMPTS_POSITION="${MCP_PROMPTS_POSITION:-postfix}"
 export REACT_RECURSION_LIMIT="${REACT_RECURSION_LIMIT:-20}"
