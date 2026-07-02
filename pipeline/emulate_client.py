@@ -50,7 +50,7 @@ env_id = uuid.uuid4().hex[:6]
 print(f"env-id: {env_id}")
 
 response = completion(
-    model="openai/rits/openai/gpt-oss-120b-a100",
+    model="openai/foo", # Praxis is configured with its own model to be used
     messages=[{"role": "user", "content": "Show me your tools"}],
     extra_headers={
         "skillberry-context-env_id": env_id
