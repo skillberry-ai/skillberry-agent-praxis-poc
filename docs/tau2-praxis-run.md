@@ -31,7 +31,7 @@ credentials and no routing logic; all of that is delegated to Praxis.
 
 ### Clone and build Praxis
 
-Check out Praxis at the pinned commit and update it to include the Skillberry filters:
+Clone Praxis at the pinned commit, then build it using the helper script:
 
 ```console
 cd ~
@@ -39,28 +39,9 @@ git clone https://github.com/praxis-proxy/praxis.git praxis
 cd praxis && git checkout 0bc9534e922a8be313331dd9f317356e5097d109
 ```
 
-Edit **`Cargo.toml`** (workspace root) — add under `[workspace.dependencies]`:
-
-```toml
-skillberry-praxis-filters = { git = "https://github.com/skillberry-ai/skillberry-praxis-filters.git", branch = "main" }
-```
-
-And add under `[patch."https://github.com/praxis-proxy/praxis.git"]`:
-
-```toml
-praxis-proxy-filter = { path = "filter" }
-```
-
-Edit **`server/Cargo.toml`** — add under `[dependencies]`:
-
-```toml
-skillberry-praxis-filters = { workspace = true }
-```
-
-Build:
-
 ```console
-cargo update && cargo build --package praxis-proxy
+cd ~/skillberry-praxis-filters
+./scripts/build-praxis.sh
 ```
 
 ---
@@ -120,3 +101,4 @@ SPA=true make all
 ```console
 cd ~/skillberry-benchmarks/tau2
 make view view-results_tau2
+```
