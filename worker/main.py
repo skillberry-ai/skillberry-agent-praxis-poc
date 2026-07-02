@@ -13,7 +13,7 @@ Worker environment variables (read at startup)
 LLM_BASE_URL        Praxis llm-egress URL   default: http://127.0.0.1:8081/v1
 WORKER_LOG_LEVEL    Python log level        default: INFO
 WORKER_LOG_FILE     Log file path           default: /tmp/worker.log
-WORKER_PORT         HTTP listen port        default: 8001
+WORKER_PORT         HTTP listen port        default: 7010
 
 Agent configuration — injected by Praxis as x-skillberry-* request headers
 ---------------------------------------------------------------------------
@@ -265,8 +265,8 @@ def health():
 def start():
     uvicorn.run(
         "worker.main:app",
-        host="0.0.0.0",
-        port=int(os.environ.get("WORKER_PORT", "8001")),
+        host="127.0.0.1",
+        port=int(os.environ.get("WORKER_PORT", "7010")),
         log_level=log_level.lower(),
         reload=True,
     )
