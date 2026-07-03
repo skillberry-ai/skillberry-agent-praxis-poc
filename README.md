@@ -91,7 +91,36 @@ Per request it:
 
 ❗Ensure that the [skillberry-store](https://github.com/skillberry-ai/skillberry-store) is running.
 
-### 1. Build Praxis
+### 1. Import the demo skill into Skillberry Store
+
+This repo ships a minimal `hello-world` skill under [`skills/hello-world/`](skills/hello-world/).
+It has two tools — `greet` and `echo`.
+
+Import the tools first (one `curl` per Python file), then import the skill folder:
+
+```console
+# Upload each tool script — the store auto-extracts name, description, and
+# parameter schema from the function's docstring.
+curl -s -X POST "http://localhost:8000/tools/add?selected_func=greet&update=true" \
+  -F "tool=@$(pwd)/skills/hello-world/scripts/greet.py"
+
+curl -s -X POST "http://localhost:8000/tools/add?selected_func=echo&update=true" \
+  -F "tool=@$(pwd)/skills/hello-world/scripts/echo.py"
+
+# Import the skill folder (SKILL.md + scripts/) as a named skill.
+curl -s -X POST "http://localhost:8000/skills/import-anthropic" \
+  -F "source_type=folder" \
+  -F "folder_path=$(pwd)/skills/hello-world" \
+  -F "snippet_mode=file"
+```
+
+Verify the skill was registered:
+
+```console
+curl -s http://localhost:8000/skills/hello-world | python3 -m json.tool
+```
+
+### 2. Build Praxis
 
 ```console
 cd ~
@@ -106,7 +135,7 @@ cd ~/skillberry-praxis-filters
 
 No manual `Cargo.toml` edits are needed — the Skillberry filters are built into Praxis at the pinned commit.
 
-### 2. Start the Skillberry Worker
+### 3. Start the Skillberry Worker
 
 ```console
 cd ~/skillberry-praxis-filters
@@ -114,12 +143,12 @@ pip install -e worker/
 uvicorn worker.main:app --host 127.0.0.1 --port 7010 --reload
 ```
 
-### 3. Start Praxis
+### 4. Start Praxis
 
 Set required env vars and run:
 
 ```console
-export SKILL_NAME="my-skill"           # or SKILL_UUID=<uuid>
+export SKILL_NAME="hello-world"        # matches the name in skills/hello-world/SKILL.md
 export SPAPRAXIS_MODEL="my-model"      # model name for all LLM calls
 export SPAPRAXIS_TEMPERATURE="0.0"     # temperature for all LLM calls
 export SPAPRAXIS_API_KEY="<your-key>"  # provider API key
@@ -131,19 +160,27 @@ export SPAPRAXIS_LITELLMPROXY="<your-litellm-proxy>"  # host:port
 
 **Note:** If needed, (re-)build it first (`./scripts/build-praxis.sh`)
 
-### 4. Verify
+### 5. Verify
 
 ```console
 curl http://localhost:7000/health    # Praxis ingress
 curl http://localhost:7010/health    # Worker
 ```
 
-### 5. Run the client emulator
+### 6. Run the client emulator
 
 ```console
 pip install litellm
 export OPENAI_API_BASE=http://localhost:7000/v1
 python pipeline/emulate_client.py
+```
+
+The emulator sends `"Show me your tools"` to the agent. Because the `hello-world`
+skill is loaded, the agent responds with a human-readable list of both tools:
+
+```
+greet(name)  — Return a personalised greeting for the given name.
+echo(message) — Echo a message back to the caller unchanged.
 ```
 
 > The client does not need an API key — Praxis injects `SPAPRAXIS_API_KEY`
@@ -162,6 +199,12 @@ python pipeline/emulate_client.py
 ## Repository Layout
 
 ```
+skills/                                 Skillberry skills (imported into skillberry-store)
+  hello-world/                          Minimal demo skill — greet + echo tools
+    SKILL.md                            Skill metadata (name, description)
+    scripts/
+      greet.py                          greet(name) tool
+      echo.py                           echo(message) tool
 worker/                                 Skillberry Worker (Python / FastAPI)
   main.py                               HTTP endpoints, header parsing
   agentic_graph.py                      Skill resolution, VMCP, MCP tools, ReAct loop
