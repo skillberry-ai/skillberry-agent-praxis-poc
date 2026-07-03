@@ -114,7 +114,7 @@ curl -s -X POST "http://localhost:8000/skills/import-anthropic" \
   -F "snippet_mode=file"
 ```
 
-Verify the skill was registered:
+Verify the skill was imported:
 
 ```console
 curl -s http://localhost:8000/skills/hello-world | python3 -m json.tool
@@ -132,8 +132,6 @@ cd praxis && git checkout 0bc9534e922a8be313331dd9f317356e5097d109
 cd ~/skillberry-praxis-filters
 ./scripts/build-praxis.sh
 ```
-
-No manual `Cargo.toml` edits are needed — the Skillberry filters are built into Praxis at the pinned commit.
 
 ### 3. Start the Skillberry Worker
 
@@ -176,12 +174,7 @@ python pipeline/emulate_client.py
 ```
 
 The emulator sends `"Show me your tools"` to the agent. Because the `hello-world`
-skill is loaded, the agent responds with a human-readable list of both tools:
-
-```
-greet(name)  — Return a personalised greeting for the given name.
-echo(message) — Echo a message back to the caller unchanged.
-```
+skill is loaded, the agent responds with a human-readable list of both tools.
 
 > The client does not need an API key — Praxis injects `SPAPRAXIS_API_KEY`
 > into every outbound LLM request and the client-supplied model/temperature
