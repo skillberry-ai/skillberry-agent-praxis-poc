@@ -93,31 +93,31 @@ Per request it:
 
 ### 1. Import the demo skill into Skillberry Store
 
-This repo ships a minimal `hello-world` skill under [`skills/hello-world/`](skills/hello-world/).
-It has two tools — `greet` and `echo`.
+This repo ships a minimal demo skill under [`skills/praxis-demo-hello-world/`](skills/praxis-demo-hello-world/).
+It has two tools — `praxis_demo_greet` and `praxis_demo_echo`.
 
 Import the tools first (one `curl` per Python file), then import the skill folder:
 
 ```console
 # Upload each tool script — the store auto-extracts name, description, and
 # parameter schema from the function's docstring.
-curl -s -X POST "http://localhost:8000/tools/add?selected_func=greet&update=true" \
-  -F "tool=@$(pwd)/skills/hello-world/scripts/greet.py"
+curl -s -X POST "http://localhost:8000/tools/add?selected_func=praxis_demo_greet&update=true" \
+  -F "tool=@$(pwd)/skills/praxis-demo-hello-world/scripts/praxis_demo_greet.py"
 
-curl -s -X POST "http://localhost:8000/tools/add?selected_func=echo&update=true" \
-  -F "tool=@$(pwd)/skills/hello-world/scripts/echo.py"
+curl -s -X POST "http://localhost:8000/tools/add?selected_func=praxis_demo_echo&update=true" \
+  -F "tool=@$(pwd)/skills/praxis-demo-hello-world/scripts/praxis_demo_echo.py"
 
 # Import the skill folder (SKILL.md + scripts/) as a named skill.
 curl -s -X POST "http://localhost:8000/skills/import-anthropic" \
   -F "source_type=folder" \
-  -F "folder_path=$(pwd)/skills/hello-world" \
+  -F "folder_path=$(pwd)/skills/praxis-demo-hello-world" \
   -F "snippet_mode=file"
 ```
 
 Verify the skill was imported:
 
 ```console
-curl -s http://localhost:8000/skills/hello-world | python3 -m json.tool
+curl -s http://localhost:8000/skills/praxis-demo-hello-world | python3 -m json.tool
 ```
 
 ### 2. Build Praxis
@@ -129,8 +129,7 @@ cd praxis && git checkout 0bc9534e922a8be313331dd9f317356e5097d109
 ```
 
 ```console
-cd ~/skillberry-praxis-filters
-./scripts/build-praxis.sh
+cd ~/praxis && cargo update && cargo build --package praxis-proxy
 ```
 
 ### 3. Start the Skillberry Worker
@@ -146,7 +145,7 @@ uvicorn worker.main:app --host 127.0.0.1 --port 7010 --reload
 Set required env vars and run:
 
 ```console
-export SKILL_NAME="hello-world"        # matches the name in skills/hello-world/SKILL.md
+export SKILL_NAME="praxis-demo-hello-world" # matches the name in skills/praxis-demo-hello-world/SKILL.md
 export SPAPRAXIS_MODEL="my-model"      # model name for all LLM calls
 export SPAPRAXIS_TEMPERATURE="0.0"     # temperature for all LLM calls
 export SPAPRAXIS_API_KEY="<your-key>"  # provider API key
@@ -156,7 +155,7 @@ export SPAPRAXIS_LITELLMPROXY="<your-litellm-proxy>"  # host:port
 
 `scripts/start.sh` expands [`pipeline/skillberry-agent-proxy.yaml.tmpl`](pipeline/skillberry-agent-proxy.yaml.tmpl) via `envsubst` and starts Praxis with the generated config.
 
-**Note:** If needed, (re-)build it first (`./scripts/build-praxis.sh`)
+**Note:** If needed, (re-)build it first (`cd ~/praxis && cargo build --package praxis-proxy`)
 
 ### 5. Verify
 
@@ -173,8 +172,9 @@ export OPENAI_API_BASE=http://localhost:7000/v1
 python pipeline/emulate_client.py
 ```
 
-The emulator sends `"Show me your tools"` to the agent. Because the `hello-world`
-skill is loaded, the agent responds with a human-readable list of both tools.
+The emulator sends `"Show me your tools"` to the agent using the fixed session
+identifier `praxis-demo-env`. Because the `praxis-demo-hello-world` skill is loaded,
+the agent responds with a human-readable list of both tools.
 
 > The client does not need an API key — Praxis injects `SPAPRAXIS_API_KEY`
 > into every outbound LLM request and the client-supplied model/temperature
@@ -193,11 +193,11 @@ skill is loaded, the agent responds with a human-readable list of both tools.
 
 ```
 skills/                                 Skillberry skills (imported into skillberry-store)
-  hello-world/                          Minimal demo skill — greet + echo tools
-    SKILL.md                            Skill metadata (name, description)
+  praxis-demo-hello-world/              Praxis demo skill — praxis_demo_greet + praxis_demo_echo
+    SKILL.md                            Skill metadata (name: praxis-hello-world)
     scripts/
-      greet.py                          greet(name) tool
-      echo.py                           echo(message) tool
+      praxis_demo_greet.py              praxis_demo_greet(name) tool
+      praxis_demo_echo.py               praxis_demo_echo(message) tool
 worker/                                 Skillberry Worker (Python / FastAPI)
   main.py                               HTTP endpoints, header parsing
   agentic_graph.py                      Skill resolution, VMCP, MCP tools, ReAct loop
@@ -210,7 +210,6 @@ pipeline/
   emulate_client.py                     Client emulation script
 scripts/
   start.sh                              envsubst + Praxis launcher
-  build-praxis.sh                       Builds the Praxis binary
 docs/
   tau2-praxis-run.md                    Tau2 benchmark walkthrough
 ```

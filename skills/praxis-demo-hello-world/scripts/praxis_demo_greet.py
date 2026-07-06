@@ -1,4 +1,4 @@
-def greet(name: str):
+def praxis_demo_greet(name: str):
     """
     Return a personalised greeting for the given name.
 

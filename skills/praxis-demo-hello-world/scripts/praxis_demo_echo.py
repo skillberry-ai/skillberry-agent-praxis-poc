@@ -1,4 +1,4 @@
-def echo(message: str):
+def praxis_demo_echo(message: str):
     """
     Echo a message back to the caller unchanged.
 

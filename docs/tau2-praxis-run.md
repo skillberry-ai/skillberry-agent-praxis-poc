@@ -40,8 +40,7 @@ cd praxis && git checkout 0bc9534e922a8be313331dd9f317356e5097d109
 ```
 
 ```console
-cd ~/skillberry-praxis-filters
-./scripts/build-praxis.sh
+cd ~/praxis && cargo update && cargo build --package praxis-proxy
 ```
 
 ---
