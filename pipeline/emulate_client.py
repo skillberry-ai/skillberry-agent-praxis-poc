@@ -26,7 +26,6 @@ OPENAI_API_BASE  – Optional. Base URL of the Praxis proxy. Default: http://loc
 """
 
 import os
-import uuid
 
 from litellm import completion
 
@@ -45,15 +44,11 @@ os.environ.setdefault("OPENAI_API_KEY", "not-used")
 # Request
 # ---------------------------------------------------------------------------
 
-# Generate a unique 6-digit environment ID for this test run.
-env_id = uuid.uuid4().hex[:6]
-print(f"env-id: {env_id}")
-
 response = completion(
-    model="openai/foo", # Praxis is configured with its own model to be used
+    model="openai/fake-model", # Praxis is configured with its own model to be used
     messages=[{"role": "user", "content": "Show me your tools"}],
     extra_headers={
-        "skillberry-context-env_id": env_id
+        "skillberry-context-env_id": "praxis-demo-env"
     },
 )
 
