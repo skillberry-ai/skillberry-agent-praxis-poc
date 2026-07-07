@@ -99,14 +99,6 @@ It has two tools — `praxis_demo_greet` and `praxis_demo_echo`.
 Import the tools first (one `curl` per Python file), then import the skill folder:
 
 ```console
-# Upload each tool script — the store auto-extracts name, description, and
-# parameter schema from the function's docstring.
-curl -s -X POST "http://localhost:8000/tools/add?selected_func=praxis_demo_greet&update=true" \
-  -F "tool=@$(pwd)/skills/praxis-demo-hello-world/scripts/praxis_demo_greet.py"
-
-curl -s -X POST "http://localhost:8000/tools/add?selected_func=praxis_demo_echo&update=true" \
-  -F "tool=@$(pwd)/skills/praxis-demo-hello-world/scripts/praxis_demo_echo.py"
-
 # Import the skill folder (SKILL.md + scripts/) as a named skill.
 curl -s -X POST "http://localhost:8000/skills/import-anthropic" \
   -F "source_type=folder" \
