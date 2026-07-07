@@ -1,4 +1,4 @@
-# skillberry-praxis-filters
+# skillberry-agent-praxis-poc
 
 > ⚠️ **Work in Progress** — This repository is actively evolving. Features, APIs, and configuration may change at any time.
 
