@@ -9,8 +9,8 @@ using Praxis as the Skillberry agent gateway.
 
 ### Skillberry Store
 [skillberry-store](https://github.com/skillberry-ai/skillberry-store) is the backend service that manages
-skills, their associated MCP tool definitions, and the Virtual MCP server lifecycle. The worker and Praxis
-both depend on it being reachable at `SKILLBERRY_STORE_URL` (default: `http://127.0.0.1:8000`).
+skills, their associated MCP tool definitions, and the Virtual MCP server lifecycle. The worker 
+depends on it being reachable at `SKILLBERRY_STORE_URL` (default: `http://127.0.0.1:8000`).
 
 ### Skillberry Benchmarks (forked)
 The benchmark is run from a fork of the Tau2 benchmark suite at
