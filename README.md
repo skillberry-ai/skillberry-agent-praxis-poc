@@ -16,20 +16,20 @@ Client
   │  (client model/temperature/api-key are all ignored by Praxis)
   ▼
 Praxis port 7000 — client-ingress
-  │  headers filter injects agent config + LLM policy from Praxis env vars
+  │  headers filter injects agent config from Praxis env vars
   │  as x-skillberry-* headers into every worker request
   │  router + load_balancer → Skillberry Worker
   ▼
 Skillberry Worker (port 7010)   ← Python / FastAPI — this repo: worker/
   │  Reads agent config from x-skillberry-* headers (set by Praxis)
-  │  Reads model/temperature from x-skillberry-llm-* headers (SPAPRAXIS_MODEL /
-  │  SPAPRAXIS_TEMPERATURE) — client-supplied values are discarded
   │  Resolves skill UUID, creates / retrieves VMCP server, fetches MCP tools
   │  Runs LangGraph ReAct loop
   │  LLM calls loop back via Praxis port 8081
   ▼
 Praxis port 8081 — llm-egress (loopback only)
-  │  model_to_header, router, credential_injection (SPAPRAXIS_API_KEY),
+  │  Injects model (SPAPRAXIS_MODEL) and temperature
+  │  (SPAPRAXIS_TEMPERATURE), performs routing,
+  │  credential_injection (SPAPRAXIS_API_KEY),
   │  token_usage_headers
   │  (client Authorization header overwritten — client key never forwarded)
   ▼
