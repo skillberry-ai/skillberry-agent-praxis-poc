@@ -33,9 +33,10 @@
 #                           is overwritten — the client key never reaches the
 #                           upstream provider.
 #   SPAPRAXIS_LITELLMPROXY       LiteLLM proxy endpoint as host:port
-#                                e.g. my-litellm-proxy.com:443
-#   SPAPRAXIS_LITELLMPROXY_HOST  SNI hostname (derived by start.sh from
-#                                SPAPRAXIS_LITELLMPROXY by stripping :port)
+#                                e.g. my-litellm-proxy.com:443 (HTTPS)
+#                                     my-litellm-proxy.com:4000 (plain HTTP)
+#                                Port 443 auto-enables TLS + Host header rewrite.
+#   SPAPRAXIS_LITELLMPROXY_HOST  (auto-derived by start.sh — do not set manually)
 
 listeners:
   # ── Port 7000 — client-ingress (public) ────────────────────────────────────
@@ -117,12 +118,14 @@ filter_chains:
       - filter: model_to_header
         header: X-Model
 
+      # __TLS_BEGIN__
       # Set the Host header to the upstream hostname so that OpenShift/K8s
       # ingress routes the request to the correct application.
       - filter: headers
         request_set:
           - name: Host
             value: "${SPAPRAXIS_LITELLMPROXY_HOST}"
+      # __TLS_END__
 
       # Route all traffic to the LiteLLM proxy.
       # Endpoint is set via SPAPRAXIS_LITELLMPROXY env var (host:port, e.g. my-litellm-proxy.com:443).
@@ -145,8 +148,10 @@ filter_chains:
       - filter: load_balancer
         clusters:
           - name: litellm-proxy
+            # __TLS_BEGIN__
             tls:
               sni: "${SPAPRAXIS_LITELLMPROXY_HOST}"
+            # __TLS_END__
             endpoints:
               - "${SPAPRAXIS_LITELLMPROXY}"
 
