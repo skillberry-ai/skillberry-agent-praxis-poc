@@ -1,9 +1,10 @@
 # Skillberry Agent Proxy — Praxis pipeline template
 #
-# This file is a template. Deploy with:
-#   envsubst < pipeline/skillberry-agent-proxy.yaml.tmpl \
-#             > pipeline/skillberry-agent-proxy.yaml
-#   praxis --config pipeline/skillberry-agent-proxy.yaml
+# Deploy via scripts/start.sh, which:
+#   1. Derives SPAPRAXIS_LITELLMPROXY_HOST from SPAPRAXIS_LITELLMPROXY
+#   2. Expands this template with envsubst
+#   3. Strips the TLS block (between __TLS_BEGIN__/__TLS_END__) when port != 443
+#   4. Starts Praxis with the generated config
 #
 # Praxis environment variables consumed by this template
 # -------------------------------------------------------
@@ -32,8 +33,14 @@
 #                           (Bearer token). The client's Authorization header
 #                           is overwritten — the client key never reaches the
 #                           upstream provider.
-#   SPAPRAXIS_LITELLMPROXY  LiteLLM proxy endpoint as host:port
-#                           e.g. my-litellm-proxy.com:4000
+#   SPAPRAXIS_LITELLMPROXY  LiteLLM proxy endpoint as host:port (required).
+#                           e.g. my-litellm-proxy.com:443 (HTTPS — enables TLS)
+#                                my-litellm-proxy.com:4000 (plain HTTP)
+#                           Port 443 triggers TLS with SNI on the upstream
+#                           connection. Any other port uses plain HTTP.
+#   SPAPRAXIS_LITELLMPROXY_HOST  (auto-derived by start.sh — do not set manually)
+#                                Hostname extracted from SPAPRAXIS_LITELLMPROXY.
+#                                Used for the Host header and TLS SNI.
 
 listeners:
   # ── Port 7000 — client-ingress (public) ────────────────────────────────────
@@ -115,8 +122,13 @@ filter_chains:
       - filter: model_to_header
         header: X-Model
 
+      # Rewrite the Host header to the upstream hostname.
+      - filter: headers
+        request_set:
+          - name: Host
+            value: "${SPAPRAXIS_LITELLMPROXY_HOST}"
+
       # Route all traffic to the LiteLLM proxy.
-      # Endpoint is set via SPAPRAXIS_LITELLMPROXY env var (host:port, e.g. my-litellm-proxy.com:4000).
       - filter: router
         routes:
           - path_prefix: /
@@ -132,10 +144,13 @@ filter_chains:
             env_var: SPAPRAXIS_API_KEY
             header_prefix: "Bearer "
 
-      # SPAPRAXIS_LITELLMPROXY must be host:port only (expanded at deploy time via envsubst)
       - filter: load_balancer
         clusters:
           - name: litellm-proxy
+            # __TLS_BEGIN__
+            tls:
+              sni: "${SPAPRAXIS_LITELLMPROXY_HOST}"
+            # __TLS_END__
             endpoints:
               - "${SPAPRAXIS_LITELLMPROXY}"
 

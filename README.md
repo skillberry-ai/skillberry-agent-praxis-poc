@@ -138,9 +138,9 @@ Set required env vars and run:
 
 ```console
 export SKILL_NAME="praxis-demo-hello-world" # matches the name in skills/praxis-demo-hello-world/SKILL.md
-export SPAPRAXIS_MODEL="my-model"      # model name for all LLM calls
-export SPAPRAXIS_TEMPERATURE="0.0"     # temperature for all LLM calls
-export SPAPRAXIS_API_KEY="<your-key>"  # provider API key
+export SPAPRAXIS_MODEL="aws/gpt-oss-120b"   # model name for all LLM calls
+export SPAPRAXIS_TEMPERATURE="0.0"          # temperature for all LLM calls
+export SPAPRAXIS_API_KEY="<your-key>"       # provider API key
 export SPAPRAXIS_LITELLMPROXY="<your-litellm-proxy>"  # host:port
 ./scripts/start.sh
 ```

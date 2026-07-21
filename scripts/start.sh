@@ -63,8 +63,22 @@ if [[ -z "${SPAPRAXIS_API_KEY:-}" ]]; then
     exit 1
 fi
 
+# Derive the upstream hostname and detect TLS from SPAPRAXIS_LITELLMPROXY (host:port).
+export SPAPRAXIS_LITELLMPROXY_HOST="${SPAPRAXIS_LITELLMPROXY%%:*}"
+LITELLM_PORT="${SPAPRAXIS_LITELLMPROXY##*:}"
+
 echo "Expanding pipeline template..."
 envsubst < "${TMPL}" > "${CONF}"
+
+# Strip TLS from llm-egress when upstream is plain HTTP.
+# When TLS is enabled, Praxis auto-derives SNI from the Host header.
+if [[ "${LITELLM_PORT}" != "443" ]]; then
+    sed -i '/# __TLS_BEGIN__/,/# __TLS_END__/d' "${CONF}"
+    echo "Plain HTTP upstream (port ${LITELLM_PORT})."
+else
+    echo "HTTPS upstream (TLS enabled, SNI derived from Host header)."
+fi
+
 echo "Generated: ${CONF}"
 
 if [[ "${1:-}" == "--config-only" ]]; then
