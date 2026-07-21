@@ -71,12 +71,12 @@ echo "Expanding pipeline template..."
 envsubst < "${TMPL}" > "${CONF}"
 
 # Strip TLS from llm-egress when upstream is plain HTTP.
-# When TLS is enabled, Praxis auto-derives SNI from the Host header.
 if [[ "${LITELLM_PORT}" != "443" ]]; then
     sed -i '/# __TLS_BEGIN__/,/# __TLS_END__/d' "${CONF}"
     echo "Plain HTTP upstream (port ${LITELLM_PORT})."
 else
-    echo "HTTPS upstream (TLS enabled, SNI derived from Host header)."
+    sed -i '/# __TLS_BEGIN__/d; /# __TLS_END__/d' "${CONF}"
+    echo "HTTPS upstream (TLS enabled)."
 fi
 
 echo "Generated: ${CONF}"
