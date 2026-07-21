@@ -63,6 +63,9 @@ if [[ -z "${SPAPRAXIS_API_KEY:-}" ]]; then
     exit 1
 fi
 
+# Derive the SNI hostname from SPAPRAXIS_LITELLMPROXY (strip :port suffix).
+export SPAPRAXIS_LITELLMPROXY_HOST="${SPAPRAXIS_LITELLMPROXY%%:*}"
+
 echo "Expanding pipeline template..."
 envsubst < "${TMPL}" > "${CONF}"
 echo "Generated: ${CONF}"
