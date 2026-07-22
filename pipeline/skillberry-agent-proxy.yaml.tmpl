@@ -154,8 +154,6 @@ filter_chains:
             endpoints:
               - "${SPAPRAXIS_LITELLMPROXY}"
 
-      # Inject Praxis-Token-* headers on response for token usage aggregation
-      - filter: token_usage_headers
 
 runtime:
   threads: 4

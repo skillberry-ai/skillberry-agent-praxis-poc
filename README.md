@@ -2,7 +2,7 @@
 
 > ⚠️ **Work in Progress** — This repository is actively evolving. Features, APIs, and configuration may change at any time.
 
-Deployment layer that turns [Praxis](https://github.com/praxis-proxy/praxis) into the Skillberry agent gateway.
+Deployment layer that turns [Praxis](https://github.com/praxis-proxy/praxis) into the Skillberry agent proxy.
 
 It provides the Praxis pipeline configuration (listeners, filter chains, credential injection) and the Skillberry Worker — a lightweight Python service that runs the LangGraph ReAct loop, including skill resolution, VMCP server lifecycle, and MCP tool fetching.
 
@@ -24,7 +24,7 @@ Skillberry Worker (port 7010)   ← Python / FastAPI — this repo: worker/
   │  Reads agent config from x-skillberry-* headers (set by Praxis)
   │  Resolves skill UUID, creates / retrieves VMCP server, fetches MCP tools
   │  Runs LangGraph ReAct loop
-  │  LLM calls loop back via Praxis port 8081
+  │  LLM calls loopback via Praxis port 8081
   ▼
 Praxis port 8081 — llm-egress (loopback only)
   │  Injects model (SPAPRAXIS_MODEL) and temperature
@@ -57,8 +57,7 @@ Configured in [`pipeline/skillberry-agent-proxy.yaml.tmpl`](pipeline/skillberry-
 | `model_to_header` | Promotes the `model` field from the JSON request body to `X-Model` header. |
 | `router` | Routes all LLM traffic to the configured upstream cluster. |
 | `credential_injection` | Injects `SPAPRAXIS_API_KEY` as `Authorization: Bearer` before the request leaves the host. Overwrites any client-supplied key — the client's credentials are never forwarded. |
-| `load_balancer` | Forwards to the LLM upstream endpoint (set via `SPAPRAXIS_LITELLMPROXY`) or to native provider endpoints. |
-| `token_usage_headers` | Injects `Praxis-Token-Input`, `Praxis-Token-Output`, `Praxis-Token-Total` response headers when token usage metadata is present. |
+| `load_balancer` | Forwards to the LLM upstream endpoint (set via `SPAPRAXIS_LITELLMPROXY`). Enables TLS when port is 443. |
 
 ---
 
