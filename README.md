@@ -126,7 +126,7 @@ cd ~/praxis && cargo update && cargo build --package praxis-proxy
 ### 3. Start the Skillberry Worker
 
 ```console
-cd ~/skillberry-praxis-filters
+cd ~/skillberry-agent-praxis-poc
 pip install -e worker/
 uvicorn worker.main:app --host 127.0.0.1 --port 7010 --reload
 ```
