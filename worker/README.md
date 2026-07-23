@@ -10,7 +10,7 @@ session endpoints. No provider credentials, no config UI, no llm-switchboard.
 From the **repo root** (not from inside `worker/`):
 
 ```bash
-cd ~/skillberry-praxis-filters
+cd ~/skillberry-agent-praxis-poc
 .venv/bin/pip install -e worker/
 ```
 

@@ -59,7 +59,7 @@ git checkout skillberry-praxis-poc
 ### Terminal 1 — Start the Skillberry Worker
 
 ```console
-cd ~/skillberry-praxis-filters
+cd ~/skillberry-agent-praxis-poc
 pip install -e worker/
 uvicorn worker.main:app --host 127.0.0.1 --port 7010 --reload
 ```
@@ -71,7 +71,7 @@ uvicorn worker.main:app --host 127.0.0.1 --port 7010 --reload
 Set the required environment variables and start Praxis:
 
 ```console
-cd ~/skillberry-praxis-filters
+cd ~/skillberry-agent-praxis-poc
 
 export SKILL_NAME="flight_reservation_management"   # or SKILL_UUID=<uuid>
 export OPENAI_API_KEY="<your-key>"
